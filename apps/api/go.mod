@@ -1,4 +1,4 @@
-module github.com/itspablomontes/fleming/backend
+module github.com/itspablomontes/fleming/api
 
 go 1.25.5
 
