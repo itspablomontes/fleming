@@ -4,9 +4,17 @@ import { cn } from "@/lib/utils";
  * Fleming Logo
  * Minimal medical-tech branding mark with DeSci aesthetic.
  */
+export const LogoSize = {
+	Sm: "sm",
+	Md: "md",
+	Lg: "lg",
+} as const;
+
+export type LogoSize = (typeof LogoSize)[keyof typeof LogoSize];
+
 interface LogoProps {
 	className?: string;
-	size?: "sm" | "md" | "lg";
+	size?: LogoSize;
 	showText?: boolean;
 }
 
