@@ -70,8 +70,16 @@ func (h *Handler) HandleLogin(c *gin.Context) {
 
 	secure := os.Getenv("ENV") == "production"
 	c.SetCookie("auth_token", token, 3600*24, "/", "", secure, true)
+	c.SetCookie("fleming_has_session", "true", 3600*24, "/", "", secure, false)
 
 	c.JSON(http.StatusOK, LoginResponse{Success: true})
+}
+
+func (h *Handler) HandleLogout(c *gin.Context) {
+	secure := os.Getenv("ENV") == "production"
+	c.SetCookie("auth_token", "", -1, "/", "", secure, true)
+	c.SetCookie("fleming_has_session", "", -1, "/", "", secure, false)
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 func (h *Handler) HandleMe(c *gin.Context) {
