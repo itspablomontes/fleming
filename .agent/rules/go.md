@@ -56,19 +56,51 @@ linters:
 apps/backend/
 ├── cmd/                  # Entry points only
 │   └── fleming/main.go
-├── internal/             # Private application code
-│   ├── auth/             # Domain module
-│   ├── timeline/         # Domain module
-│   └── handlers/         # HTTP handlers
+├── internal/             # Feature modules
+│   ├── auth/             # Auth feature (handler, service, repo, entity)
+│   ├── timeline/         # Timeline feature (handler, service, repo, entity)
+│   └── middleware/       # Shared middleware
 ├── router.go             # Central routing
 └── Dockerfile
 ```
 
 ### Rules
-- **One package = one responsibility**.
+- **Package by Feature**: Group `handler.go`, `service.go`, `repository.go`, and `entity.go` within the feature folder (e.g., `internal/auth/`).
+- **No global `handlers` or `repositories` packages**.
 - **`main` package stays tiny** — real logic in `internal/`.
 - **Use `internal/`** for code that shouldn't be imported externally.
-- **No cyclic dependencies** — use interfaces.
+
+---
+
+## 4. GORM & Repository Pattern
+
+### Repository Interface
+Define interfaces for data access in `repository.go` within the feature package.
+
+```go
+type Repository interface {
+    Create(ctx context.Context, user *User) error
+    FindByID(ctx context.Context, id string) (*User, error)
+}
+```
+
+### GORM Implementation
+Implement the interface using GORM.
+
+```go
+type GormRepository struct {
+    db *gorm.DB
+}
+
+func NewGormRepository(db *gorm.DB) *GormRepository {
+    return &GormRepository{db: db}
+}
+```
+
+### Rules
+- **Use GORM** for database interactions.
+- **Decouple Service from GORM**: Services should depend on the `Repository` interface, not `*gorm.DB` directly.
+- **Entities** should have GORM tags in `entity.go`.
 
 ---
 
