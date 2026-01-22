@@ -1,11 +1,13 @@
 services:
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     restart: "${RESTART_POLICY:-unless-stopped}"
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    env_file:
+      - .env
     environment:
       - ENV=${ENV:-dev}
       - DB_HOST=${BACKEND_DB_HOST:-db}
@@ -32,7 +34,7 @@ services:
       dockerfile: Dockerfile
     restart: "${RESTART_POLICY:-unless-stopped}"
     ports:
-      - "${WEB_PORT:-3000}:8080"
+      - "${HOST_WEB_PORT:-8081}:8080"
     depends_on:
       - backend
     networks:
