@@ -1,5 +1,4 @@
 import { Logo } from "@/components/common/logo";
-import { ConnectWalletButton } from "@/features/auth/components/connect-wallet-button";
 import { cn } from "@/lib/utils";
 import { TrustSignals } from "./trust-signals";
 
@@ -10,19 +9,10 @@ import { TrustSignals } from "./trust-signals";
  */
 interface LandingHeroProps {
 	className?: string;
-	isConnecting?: boolean;
-	isConnected?: boolean;
-	onConnect?: () => void;
-	onSignIn?: () => void;
+	actionButton?: React.ReactNode;
 }
 
-export function LandingHero({
-	className,
-	isConnecting = false,
-	isConnected = false,
-	onConnect,
-	onSignIn,
-}: LandingHeroProps) {
+export function LandingHero({ className, actionButton }: LandingHeroProps) {
 	return (
 		<div
 			className={cn(
@@ -31,7 +21,6 @@ export function LandingHero({
 				className,
 			)}
 		>
-			{/* Ambient glow effect (VitaDAO inspired) */}
 			<div
 				className="pointer-events-none absolute inset-0 overflow-hidden"
 				aria-hidden="true"
@@ -40,7 +29,6 @@ export function LandingHero({
 				<div className="absolute right-1/4 top-1/4 h-[400px] w-[400px] rounded-full bg-accent/5 blur-3xl" />
 			</div>
 
-			{/* Content */}
 			<div className="relative z-10 flex max-w-2xl flex-col items-center gap-8">
 				<Logo size="lg" />
 
@@ -59,28 +47,11 @@ export function LandingHero({
 				</div>
 
 				<div className="flex flex-col items-center gap-4">
-					<ConnectWalletButton
-						isConnecting={isConnecting}
-						isConnected={isConnected}
-						onClick={isConnected ? onSignIn : onConnect}
-						className="w-full sm:w-auto"
-					/>
+					{actionButton}
 
-					{!isConnected && (
-						<p className="text-xs text-muted-foreground">
-							We never have access to your funds. Just your identity.
-						</p>
-					)}
-
-					{isConnected && (
-						<button
-							type="button"
-							onClick={onSignIn}
-							className="text-sm text-primary underline-offset-4 hover:underline"
-						>
-							Already connected? Sign in →
-						</button>
-					)}
+					<p className="text-xs text-muted-foreground">
+						We never have access to your funds. Just your identity.
+					</p>
 				</div>
 
 				<div className="mt-8 pt-8 border-t border-border">
