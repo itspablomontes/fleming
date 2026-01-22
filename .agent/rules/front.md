@@ -1,73 +1,75 @@
 ---
 trigger: glob
-globs: *.ts , *.tsx
+description: React + TypeScript frontend development rules.
+globs: "*.ts", "*.tsx"
 ---
 
-# React + TypeScript Rules – 2026 Edition (Fleming Codebase)
+# React + TypeScript Rules
 (React 19, Vite + Rolldown, TanStack Stack, Biome)
 
+> **See also**: general.md for project philosophy and engineering principles.
+
 We write **clean, maintainable, type-safe, SOLID-compliant** React code.
-We lean heavily on **React 19** primitives, **TanStack** libraries (Router, Form), and **Biome** for strict enforcement.
 
-## Tooling & Language Discipline
-- **Build**: Vite 7 (Rolldown) + `@vitejs/plugin-react-swc`.
-- **Lint/Format**: **Biome** (`@biomejs/biome`). No ESLint/Prettier.
-  - Run `pnpm lint` (or `biome check --write` to fix).
-  - Enforces import sorting, formatting, and best practices automatically.
-- **Styling**: Tailwind CSS v4 (`@tailwindcss/vite`) + `clsx` + `tailwind-merge` + `cva`.
+---
 
-## TypeScript Standards & Best Practices
-- **Strict Typing**: `strict: true` is non-negotiable.
-- **No `any`**: Strictly forbidden. Use `unknown` with narrowing if necessary.
-- **Explicit Returns**: Exported functions and hooks should have explicit return types to prevent accidental API leaks.
-- **Extract Union Types**: Do not inline union types in interfaces setup. Always extract them to a named type.
-  - **Bad**: `interface User { role: "admin" | "user"; }`
-  - **Good**: `interface User { role: UserRole; }`
-- **Prefer "as const Enums"**: Instead of simple string union types for known states, use the Object-as-Const pattern. This provides better scalability, refactoring support, and runtime value access.
-  ```typescript
-  // Avoid:
-  // type Status = "draft" | "published";
+## 1. Tooling & Language Discipline
 
-  // Prefer:
-  export const Status = {
-    Draft: "draft",
-    Published: "published",
-  } as const;
-  export type Status = (typeof Status)[keyof typeof Status];
-  ```
-- **Type Definitions**:
-  - **`type`** vs **`interface`**: Prefer `interface` for extendable object shapes (like Component Props) and `type` for unions/primitives.
-  - **Zod Integration**: Use `z.infer<typeof Schema>` for types derived from validation schemas.
+| Tool | Purpose |
+|------|---------|
+| **Build** | Vite 7 (Rolldown) + `@vitejs/plugin-react-swc` |
+| **Lint/Format** | Biome (`@biomejs/biome`). No ESLint/Prettier. |
+| **Styling** | Tailwind CSS v4 + `clsx` + `tailwind-merge` + `cva` |
+| **Forms** | TanStack Form + Zod |
+| **Routing** | TanStack Router (file-based) |
+| **State** | React Query for server state, Context for DI |
 
+---
 
-## Routing (TanStack Router)
-- **File-Based Routing**: All routes live in `apps/web/src/routes`.
-- **Typesafe**: Rely on `routeTree.gen.ts`. Do not manually edit it.
-- **Loaders**: Use `loader` in routes for data fetching (parallelized by default).
-- **Search Params**: Validate with Zod schemas in `validateSearch`.
-- **Links**: Use type-safe `<Link>` component. Never `<a>` tags for internal nav.
-- **Thin Routes**: Route files should have **NO logic** or UI implementation. They should only define the route (loader, params) and import a **Page Component** from `features/{feature}/pages/`.
+## 2. TypeScript Standards
 
-## Forms & Validation (TanStack Form + Zod)
-- Use `@tanstack/react-form` for complex form state.
-- Define schemas with **Zod** (`z`).
-- Validations should be shared between backend and frontend if possible.
+### Non-Negotiables
+- **`strict: true`** — Always enabled.
+- **No `any`** — Use `unknown` with type narrowing.
+- **Explicit returns** — Exported functions must declare return types.
 
-## SOLID in React (Component/Hook Design)
-- **S**ingle Responsibility: One component = one UI concern. Extract queries/logic to hooks.
-- **O**pen/Closed: Extend via props/slots (Composition), not by adding 10 boolean flags.
-- **L**iskov Substitution: A custom `Button` should accept standard button props.
-- **I**nterface Segregation: Props should be minimal. Don't pass a whole `User` object if only `name` is needed.
-- **D**ependency Inversion: Components depend on props/hooks, not global fetches.
+### Type Patterns
+```typescript
+// ❌ Bad: Inline union
+interface User { role: "admin" | "user"; }
 
-## Component & Typing Best Practices
-- **Function Components Only**.
-- **Avoid** `React.FC`.
-- **Composition**: Use compound components or slots for complex UIs.
-- **Hook Rules**: Custom hooks start with `use`. Colocate state unless shared.
+// ✅ Good: Extracted type
+type UserRole = "admin" | "user";
+interface User { role: UserRole; }
 
+// ✅ Better: As-const enum
+export const UserRole = {
+  Admin: "admin",
+  User: "user",
+} as const;
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+```
+
+### Type vs Interface
+- **`interface`** — Object shapes, component props (extendable).
+- **`type`** — Unions, primitives, computed types.
+
+---
+
+## 3. Component Design
+
+### SOLID Principles Applied
+| Principle | React Application |
+|-----------|-------------------|
+| **SRP** | One component = one concern. Extract logic to hooks. |
+| **OCP** | Extend via composition (slots, children), not boolean flags. |
+| **LSP** | Custom components accept standard HTML props. |
+| **ISP** | Props should be minimal. Don't pass entire objects. |
+| **DIP** | Components depend on props/hooks, not global imports. |
+
+### Best Practices
 ```tsx
-// Example: Composition & Typing
+// ✅ Good: Typed, composable, minimal props
 interface CardProps {
   title: string;
   footer?: React.ReactNode;
@@ -85,31 +87,81 @@ export function Card({ title, footer, children }: CardProps) {
 }
 ```
 
-## React 19 Specifics
-- **Actions**: Use `useActionState` (or aliases) for mutations.
-- **Suspense**: Embrace `<Suspense>` boundaries.
-- **"use"**: Use `use(Promise)` or `use(Context)` instead of `useContext` or effects for data unwrapping.
-- **Ref**: Pass `ref` as a prop (no `forwardRef` needed in React 19).
+### Rules
+- **Function components only** — No class components.
+- **No `React.FC`** — Use explicit prop typing.
+- **Hooks start with `use`** — Always.
 
-## Directory Structure (`apps/web/src`)
-- `features/` — Domain-specific features (Auth, Timeline, Consent).
-  - `{feature}/components/`
-  - `{feature}/pages/` — Route-level page components.
-  - `{feature}/hooks/`
-  - `{feature}/types/`
-  - `{feature}/api/`
-- `components/` — Shared UI components (dumb/presentational).
-  - `ui/` — Low-level primitives (buttons, inputs).
-  - `common/` — Shared domain-agnostic components (Logo, etc.).
-- `routes/` — File-system routing (Pages/Layouts).
-- `lib/` — Utilities, API clients, helpers.
-- `hooks/` — Global reusable hooks.
-- `types/` — Global shared types. **Do not cluster in `index.ts`**. Use named files (e.g. `ethereum.ts`, `api.ts`) for context.
+---
 
-## Performance & Quality
-- **Performance**: Trust React Compiler. Don't proactively `useMemo` unless necessary.
-- **Type Safety**: Strictly typed props. Zod for runtime data.
-- **Images**: Use optimized formats.
+## 4. Routing (TanStack Router)
+
+| Rule | Description |
+|------|-------------|
+| **File-based** | Routes live in `apps/web/src/routes/` |
+| **Typesafe** | Rely on generated `routeTree.gen.ts` |
+| **Thin routes** | Route files = routing config only. Import Page from `features/`. |
+| **`<Link>` only** | Never use `<a>` for internal navigation. |
+
+### Loaders & Search Params
+```typescript
+// Route with loader and typed search params
+export const Route = createFileRoute('/timeline')({
+  component: TimelinePage,
+  validateSearch: z.object({ filter: z.string().optional() }),
+  loader: async () => fetchTimeline(),
+});
+```
+
+---
+
+## 5. React 19 Specifics
+
+| Feature | Usage |
+|---------|-------|
+| **Actions** | Use `useActionState` for mutations |
+| **Suspense** | Embrace `<Suspense>` boundaries |
+| **`use()`** | Replace `useContext` with `use(Context)` |
+| **Refs** | Pass `ref` as prop (no `forwardRef` needed) |
+
+---
+
+## 6. Error Handling & Testing
+
+### Error Handling
+- Wrap async operations in try/catch.
+- Use error boundaries for component failures.
+- Display user-friendly error messages, log details for debugging.
+
+### Testing Philosophy
+- **Unit tests** for hooks and utilities.
+- **Component tests** with Testing Library.
+- **E2E tests** for critical user flows (Playwright).
+
+---
+
+## 7. Directory Structure
+
+```
+src/
+├── routes/           # File-based routing
+├── features/         # Domain features (auth, timeline, etc.)
+│   └── {feature}/
+│       ├── components/
+│       ├── hooks/
+│       ├── pages/
+│       ├── api/
+│       └── types/
+├── components/
+│   ├── ui/           # Primitives (Button, Input)
+│   └── common/       # Generic (Logo, ErrorBoundary)
+├── lib/              # Utilities, API clients
+├── hooks/            # Global hooks
+└── types/            # Global types (named files)
+```
+
+---
 
 ## Quick Mantra
-**"Typesafe Routing. Biome Formatting. Composition over Configuration."**
+
+> **"Typesafe Routing. Biome Formatting. Composition over Configuration."**
