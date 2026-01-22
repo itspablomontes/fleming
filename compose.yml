@@ -10,6 +10,7 @@ services:
       - .env
     environment:
       - ENV=${ENV:-dev}
+      - PORT=8080
       - DB_HOST=${BACKEND_DB_HOST:-db}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
