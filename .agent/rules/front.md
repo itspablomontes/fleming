@@ -1,49 +1,75 @@
 ---
 trigger: glob
-globs: *.ts , *.tsx
+description: React + TypeScript frontend development rules.
+globs: "*.ts", "*.tsx"
 ---
 
-# React + TypeScript Rules – 2026 Edition (Fleming Codebase)
+# React + TypeScript Rules
 (React 19, Vite + Rolldown, TanStack Stack, Biome)
 
+> **See also**: general.md for project philosophy and engineering principles.
+
 We write **clean, maintainable, type-safe, SOLID-compliant** React code.
-We lean heavily on **React 19** primitives, **TanStack** libraries (Router, Form), and **Biome** for strict enforcement.
 
-## Tooling & Language Discipline
-- **Build**: Vite 7 (Rolldown) + `@vitejs/plugin-react-swc`.
-- **Lint/Format**: **Biome** (`@biomejs/biome`). No ESLint/Prettier.
-  - Run `pnpm lint` (or `biome check --write` to fix).
-  - Enforces import sorting, formatting, and best practices automatically.
-- **TypeScript**: `strict: true`. No `any`. Use `unknown` + narrowing.
-- **Styling**: Tailwind CSS v4 (`@tailwindcss/vite`) + `clsx` + `tailwind-merge` + `cva`.
+---
 
-## Routing (TanStack Router)
-- **File-Based Routing**: All routes live in `apps/web/src/routes`.
-- **Typesafe**: Rely on `routeTree.gen.ts`. Do not manually edit it.
-- **Loaders**: Use `loader` in routes for data fetching (parallelized by default).
-- **Search Params**: Validate with Zod schemas in `validateSearch`.
-- **Links**: Use type-safe `<Link>` component. Never `<a>` tags for internal nav.
+## 1. Tooling & Language Discipline
 
-## Forms & Validation (TanStack Form + Zod)
-- Use `@tanstack/react-form` for complex form state.
-- Define schemas with **Zod** (`z`).
-- Validations should be shared between backend and frontend if possible.
+| Tool | Purpose |
+|------|---------|
+| **Build** | Vite 7 (Rolldown) + `@vitejs/plugin-react-swc` |
+| **Lint/Format** | Biome (`@biomejs/biome`). No ESLint/Prettier. |
+| **Styling** | Tailwind CSS v4 + `clsx` + `tailwind-merge` + `cva` |
+| **Forms** | TanStack Form + Zod |
+| **Routing** | TanStack Router (file-based) |
+| **State** | React Query for server state, Context for DI |
 
-## SOLID in React (Component/Hook Design)
-- **S**ingle Responsibility: One component = one UI concern. Extract queries/logic to hooks.
-- **O**pen/Closed: Extend via props/slots (Composition), not by adding 10 boolean flags.
-- **L**iskov Substitution: A custom `Button` should accept standard button props.
-- **I**nterface Segregation: Props should be minimal. Don't pass a whole `User` object if only `name` is needed.
-- **D**ependency Inversion: Components depend on props/hooks, not global fetches.
+---
 
-## Component & Typing Best Practices
-- **Function Components Only**.
-- **Avoid** `React.FC`.
-- **Composition**: Use compound components or slots for complex UIs.
-- **Hook Rules**: Custom hooks start with `use`. Colocate state unless shared.
+## 2. TypeScript Standards
 
+### Non-Negotiables
+- **`strict: true`** — Always enabled.
+- **No `any`** — Use `unknown` with type narrowing.
+- **Explicit returns** — Exported functions must declare return types.
+
+### Type Patterns
+```typescript
+// ❌ Bad: Inline union
+interface User { role: "admin" | "user"; }
+
+// ✅ Good: Extracted type
+type UserRole = "admin" | "user";
+interface User { role: UserRole; }
+
+// ✅ Better: As-const enum
+export const UserRole = {
+  Admin: "admin",
+  User: "user",
+} as const;
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+```
+
+### Type vs Interface
+- **`interface`** — Object shapes, component props (extendable).
+- **`type`** — Unions, primitives, computed types.
+
+---
+
+## 3. Component Design
+
+### SOLID Principles Applied
+| Principle | React Application |
+|-----------|-------------------|
+| **SRP** | One component = one concern. Extract logic to hooks. |
+| **OCP** | Extend via composition (slots, children), not boolean flags. |
+| **LSP** | Custom components accept standard HTML props. |
+| **ISP** | Props should be minimal. Don't pass entire objects. |
+| **DIP** | Components depend on props/hooks, not global imports. |
+
+### Best Practices
 ```tsx
-// Example: Composition & Typing
+// ✅ Good: Typed, composable, minimal props
 interface CardProps {
   title: string;
   footer?: React.ReactNode;
@@ -61,23 +87,81 @@ export function Card({ title, footer, children }: CardProps) {
 }
 ```
 
-## React 19 Specifics
-- **Actions**: Use `useActionState` (or aliases) for mutations.
-- **Suspense**: Embrace `<Suspense>` boundaries.
-- **"use"**: Use `use(Promise)` or `use(Context)` instead of `useContext` or effects for data unwrapping.
-- **Ref**: Pass `ref` as a prop (no `forwardRef` needed in React 19).
+### Rules
+- **Function components only** — No class components.
+- **No `React.FC`** — Use explicit prop typing.
+- **Hooks start with `use`** — Always.
 
-## Directory Structure (`apps/web/src`)
-- `routes/` — File-system routing (Pages/Layouts).
-- `components/` — Reusable, shared UI components.
-  - `ui/` — Low-level primitives.
-- `lib/` — Utilities, API clients, helpers.
-- `hooks/` — Global reusable hooks.
+---
 
-## Performance & Quality
-- **Performance**: Trust React Compiler. Don't proactively `useMemo` unless necessary.
-- **Type Safety**: Strictly typed props. Zod for runtime data.
-- **Images**: Use optimized formats.
+## 4. Routing (TanStack Router)
+
+| Rule | Description |
+|------|-------------|
+| **File-based** | Routes live in `apps/web/src/routes/` |
+| **Typesafe** | Rely on generated `routeTree.gen.ts` |
+| **Thin routes** | Route files = routing config only. Import Page from `features/`. |
+| **`<Link>` only** | Never use `<a>` for internal navigation. |
+
+### Loaders & Search Params
+```typescript
+// Route with loader and typed search params
+export const Route = createFileRoute('/timeline')({
+  component: TimelinePage,
+  validateSearch: z.object({ filter: z.string().optional() }),
+  loader: async () => fetchTimeline(),
+});
+```
+
+---
+
+## 5. React 19 Specifics
+
+| Feature | Usage |
+|---------|-------|
+| **Actions** | Use `useActionState` for mutations |
+| **Suspense** | Embrace `<Suspense>` boundaries |
+| **`use()`** | Replace `useContext` with `use(Context)` |
+| **Refs** | Pass `ref` as prop (no `forwardRef` needed) |
+
+---
+
+## 6. Error Handling & Testing
+
+### Error Handling
+- Wrap async operations in try/catch.
+- Use error boundaries for component failures.
+- Display user-friendly error messages, log details for debugging.
+
+### Testing Philosophy
+- **Unit tests** for hooks and utilities.
+- **Component tests** with Testing Library.
+- **E2E tests** for critical user flows (Playwright).
+
+---
+
+## 7. Directory Structure
+
+```
+src/
+├── routes/           # File-based routing
+├── features/         # Domain features (auth, timeline, etc.)
+│   └── {feature}/
+│       ├── components/
+│       ├── hooks/
+│       ├── pages/
+│       ├── api/
+│       └── types/
+├── components/
+│   ├── ui/           # Primitives (Button, Input)
+│   └── common/       # Generic (Logo, ErrorBoundary)
+├── lib/              # Utilities, API clients
+├── hooks/            # Global hooks
+└── types/            # Global types (named files)
+```
+
+---
 
 ## Quick Mantra
-**"Typesafe Routing. Biome Formatting. Composition over Configuration."**
+
+> **"Typesafe Routing. Biome Formatting. Composition over Configuration."**

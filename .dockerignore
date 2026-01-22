@@ -1,0 +1,42 @@
+# Dependencies
+node_modules
+apps/web/node_modules
+**/node_modules
+
+# Build outputs
+apps/web/dist
+**/dist
+**/tmp
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Docker artifacts
+.dockerignore
+docker-compose*.yml
+compose*.yml
+
+# Environment files
+.env*
+!.env.example
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test files
+**/*_test.go
+**/test/
+**/tests/
+**/__tests__/

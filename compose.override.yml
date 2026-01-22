@@ -1,19 +1,36 @@
 services:
   backend:
     build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
       target: builder
-    command: air -c .air.toml
+    command: sh -c "cd /workspace/apps/backend && air -c .air.toml"
     volumes:
-      - ./apps/backend:/app
+      - ./apps/backend:/workspace/apps/backend
+      - ./pkg:/workspace/pkg
+      - ./go.work:/workspace/go.work
+      - ./go.work.sum:/workspace/go.work.sum
+    working_dir: /workspace/apps/backend
     environment:
       - ENV=dev
 
   web:
     build:
+      context: ./apps/web
+      dockerfile: Dockerfile
       target: builder
-    command: pnpm dev --host
+    command: sh -c "pnpm config set store-dir /pnpm-store && pnpm install && pnpm dev --host"
+    ports:
+      - "${HOST_WEB_DEV_PORT:-5173}:5173"
     volumes:
       - ./apps/web:/app
       - /app/node_modules
+      - pnpm_store:/pnpm-store
     environment:
       - WATCH_MODE=true
+      - BACKEND_URL=http://backend:8080
+      - CI=true
+      - PNPM_HOME=/pnpm-store
+  # Add top-level volumes to ensure persistence and isolation
+volumes:
+  pnpm_store:

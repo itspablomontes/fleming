@@ -1,13 +1,12 @@
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { Toaster } from "sonner";
+import { AuthProvider } from "@/features/auth/context/auth-context";
 
 export const Route = createRootRoute({
-  component: () => (
-    <>
-      <div className="p-2 gap-2 flex">
-        {/* Placeholder for future navigation */}
-      </div>
-      <hr />
-      <Outlet />
-    </>
-  ),
-})
+	component: () => (
+		<AuthProvider>
+			<Outlet />
+			<Toaster richColors position="top-right" />
+		</AuthProvider>
+	),
+});

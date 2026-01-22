@@ -3,14 +3,38 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Fleming Design System — DeSci Edition
+ * ======================================
+ * Inspired by VitaDAO and Molecule.xyz
+ * 
+ * Design Principles:
+ * - Dark-first: Deep navy/black backgrounds with high-contrast accents
+ * - Trust through precision: Monospace fonts for data, clean sans-serif for content
+ * - Minimal chrome: Thin 1px borders, subtle glows, no heavy shadows
+ * - Medical-tech aesthetic: Clinical precision meets futuristic innovation
+ * 
+ * Key Inspirations:
+ * - VitaDAO: Pure black bg, lime/yellow accents, blue vignette glow
+ * - Molecule: Deep navy bg, cyan/teal accents, sophisticated depth
+ */
+
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  /* ===== RADIUS SCALE ===== */
+  --radius-sm: 0.375rem;
+  /* 6px - Small interactive elements */
+  --radius-md: 0.5rem;
+  /* 8px - Cards, inputs */
+  --radius-lg: 0.75rem;
+  /* 12px - Modals, larger containers */
+  --radius-xl: 1rem;
+  /* 16px - Hero elements */
+  --radius-2xl: 1.5rem;
+  /* 24px - Pill buttons */
+  --radius-full: 9999px;
+  /* Full pill shape */
+
+  /* ===== SEMANTIC COLORS ===== */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -29,11 +53,15 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* ===== CHART COLORS ===== */
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
+  /* ===== SIDEBAR COLORS ===== */
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -42,82 +70,245 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ===== CONSENT STATUS COLORS ===== */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  /* ===== TYPOGRAPHY (Molecule/VitaDAO Inspired) ===== */
+  /* Heading: Modern geometric sans-serif */
+  --font-sans: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Data/Code: Technical monospace for addresses, timestamps, medical codes */
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 }
 
+/*
+ * DARK MODE (Primary - DeSci Aesthetic)
+ * =====================================
+ * Molecule.xyz inspired: Deep navy base with cyan accents
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Use dark mode as default (will swap via .light class) */
+  color-scheme: dark;
+
+  /* Core backgrounds - Deep Navy/Black (Molecule style) */
+  --background: oklch(0.12 0.02 260);
+  /* #050a14 - Deep navy */
+  --foreground: oklch(0.95 0.01 260);
+  /* Near white text */
+
+  /* Card/Surface - Slightly elevated from background */
+  --card: oklch(0.16 0.025 260);
+  /* #0b1221 - Card surface */
+  --card-foreground: oklch(0.95 0.01 260);
+
+  /* Popover - Same as card */
+  --popover: oklch(0.16 0.025 260);
+  --popover-foreground: oklch(0.95 0.01 260);
+
+  /* Primary - Cyan/Teal (Molecule accent) */
+  --primary: oklch(0.80 0.18 190);
+  /* #00f0f0 - Vibrant cyan */
+  --primary-foreground: oklch(0.12 0.02 260);
+  /* Dark text on cyan */
+
+  /* Secondary - Subtle elevation */
+  --secondary: oklch(0.20 0.025 260);
+  /* Slightly lighter than card */
+  --secondary-foreground: oklch(0.85 0.02 260);
+
+  /* Muted - Subdued text and backgrounds */
+  --muted: oklch(0.22 0.02 260);
+  --muted-foreground: oklch(0.60 0.02 260);
+  /* 60% brightness for muted text */
+
+  /* Accent - VitaDAO lime/yellow for highlights */
+  --accent: oklch(0.88 0.18 110);
+  /* #e0f58f - Vita green/lime */
+  --accent-foreground: oklch(0.12 0.02 260);
+
+  /* Destructive - Error/Revoked states */
+  --destructive: oklch(0.65 0.22 25);
+  /* Vivid red */
+
+  /* Borders - Thin, subtle (VitaDAO style: border-white/10) */
+  --border: oklch(0.35 0.02 260);
+  /* Subtle dividers */
+  --input: oklch(0.25 0.025 260);
+  /* Input backgrounds */
+  --ring: oklch(0.80 0.18 190);
+  /* Focus ring = primary cyan */
+
+  /* Charts - DeSci palette */
+  --chart-1: oklch(0.80 0.18 190);
+  /* Cyan */
+  --chart-2: oklch(0.88 0.18 110);
+  /* Lime */
+  --chart-3: oklch(0.70 0.20 280);
+  /* Purple */
+  --chart-4: oklch(0.75 0.18 60);
+  /* Orange */
+  --chart-5: oklch(0.65 0.22 25);
+  /* Red */
+
+  /* Sidebar */
+  --sidebar: oklch(0.10 0.02 260);
+  /* Darker than background */
+  --sidebar-foreground: oklch(0.90 0.01 260);
+  --sidebar-primary: oklch(0.80 0.18 190);
+  --sidebar-primary-foreground: oklch(0.12 0.02 260);
+  --sidebar-accent: oklch(0.18 0.025 260);
+  --sidebar-accent-foreground: oklch(0.90 0.01 260);
+  --sidebar-border: oklch(0.25 0.02 260);
+  --sidebar-ring: oklch(0.80 0.18 190);
+
+  /* ===== CONSENT STATUS COLORS ===== */
+  /* Success: Granted - Molecule green */
+  --success: oklch(0.72 0.19 155);
+  /* Teal-green */
+  --success-foreground: oklch(0.12 0.02 260);
+
+  /* Warning: Pending Review - VitaDAO amber */
+  --warning: oklch(0.82 0.16 85);
+  /* Gold/amber */
+  --warning-foreground: oklch(0.15 0.02 60);
+
+  /* Info: Informational states */
+  --info: oklch(0.75 0.15 230);
+  /* Soft blue */
+  --info-foreground: oklch(0.12 0.02 260);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+/*
+ * LIGHT MODE (Alternative)
+ * ========================
+ * For accessibility and user preference
+ */
+.light {
+  color-scheme: light;
+
+  /* Core backgrounds */
+  --background: oklch(0.98 0.005 260);
+  /* Near white */
+  --foreground: oklch(0.12 0.02 260);
+  /* Deep navy text */
+
+  /* Card/Surface */
+  --card: oklch(1 0 0);
+  /* Pure white */
+  --card-foreground: oklch(0.12 0.02 260);
+
+  /* Popover */
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0.02 260);
+
+  /* Primary - Darker cyan for light mode */
+  --primary: oklch(0.55 0.20 195);
+  /* Darker teal */
+  --primary-foreground: oklch(0.98 0.005 260);
+
+  /* Secondary */
+  --secondary: oklch(0.95 0.01 260);
+  --secondary-foreground: oklch(0.20 0.03 260);
+
+  /* Muted */
+  --muted: oklch(0.95 0.01 260);
+  --muted-foreground: oklch(0.45 0.02 260);
+
+  /* Accent - Darker lime for visibility */
+  --accent: oklch(0.65 0.20 140);
+  /* Forest green */
+  --accent-foreground: oklch(0.98 0.005 260);
+
+  /* Destructive */
+  --destructive: oklch(0.55 0.25 25);
+
+  /* Borders */
+  --border: oklch(0.88 0.01 260);
+  --input: oklch(0.92 0.01 260);
+  --ring: oklch(0.55 0.20 195);
+
+  /* Charts */
+  --chart-1: oklch(0.55 0.20 195);
+  --chart-2: oklch(0.55 0.21 140);
+  --chart-3: oklch(0.55 0.22 280);
+  --chart-4: oklch(0.65 0.20 60);
+  --chart-5: oklch(0.55 0.25 25);
+
+  /* Sidebar */
+  --sidebar: oklch(0.96 0.005 260);
+  --sidebar-foreground: oklch(0.12 0.02 260);
+  --sidebar-primary: oklch(0.55 0.20 195);
+  --sidebar-primary-foreground: oklch(0.98 0.005 260);
+  --sidebar-accent: oklch(0.93 0.01 260);
+  --sidebar-accent-foreground: oklch(0.20 0.03 260);
+  --sidebar-border: oklch(0.88 0.01 260);
+  --sidebar-ring: oklch(0.55 0.20 195);
+
+  /* Consent status colors (light mode) */
+  --success: oklch(0.55 0.21 155);
+  --success-foreground: oklch(0.98 0.005 260);
+
+  --warning: oklch(0.70 0.18 80);
+  --warning-foreground: oklch(0.15 0.02 60);
+
+  --info: oklch(0.55 0.18 230);
+  --info-foreground: oklch(0.98 0.005 260);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
+}
+
+/*
+ * GLOW EFFECTS (VitaDAO Inspired)
+ * ===============================
+ * Subtle vignette/halo effects for depth
+ */
+.glow-primary {
+  box-shadow: 0 0 60px -15px oklch(0.80 0.18 190 / 30%);
+}
+
+.glow-accent {
+  box-shadow: 0 0 60px -15px oklch(0.88 0.18 110 / 30%);
+}
+
+.glow-success {
+  box-shadow: 0 0 40px -10px oklch(0.72 0.19 155 / 25%);
+}
+
+/*
+ * ACCESSIBILITY
+ * =============
+ */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * TYPOGRAPHY UTILITIES
+ * ====================
+ */
+.font-data {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "ss01";
 }

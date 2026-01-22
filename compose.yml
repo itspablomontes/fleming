@@ -1,18 +1,22 @@
 services:
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     restart: "${RESTART_POLICY:-unless-stopped}"
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    env_file:
+      - .env
     environment:
       - ENV=${ENV:-dev}
+      - PORT=8080
       - DB_HOST=${BACKEND_DB_HOST:-db}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - DB_PORT=${DB_PORT:-5432}
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@${BACKEND_DB_HOST:-db}:${DB_PORT:-5432}/${DB_NAME}?sslmode=disable
       - S3_ENDPOINT=${BACKEND_S3_ENDPOINT:-minio:9000}
       - S3_ACCESS_KEY=${MINIO_ROOT_USER}
       - S3_SECRET_KEY=${MINIO_ROOT_PASSWORD}
@@ -32,7 +36,7 @@ services:
       dockerfile: Dockerfile
     restart: "${RESTART_POLICY:-unless-stopped}"
     ports:
-      - "${WEB_PORT:-3000}:8080"
+      - "${HOST_WEB_PORT:-8081}:8080"
     depends_on:
       - backend
     networks:
