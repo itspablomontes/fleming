@@ -1,10 +1,15 @@
 import { apiClient } from "@/lib/api-client";
 
-export const checkAuth = async (): Promise<boolean> => {
+export interface AuthResponse {
+    address: string;
+    status: string;
+}
+
+export const checkAuth = async (): Promise<AuthResponse | null> => {
     try {
-        await apiClient("/auth/me");
-        return true;
+        const data = await apiClient("/auth/me");
+        return data as AuthResponse;
     } catch {
-        return false;
+        return null;
     }
 };

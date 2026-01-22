@@ -16,8 +16,19 @@ export const UserRole = {
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 /**
+ * JWT payload from backend.
+ * This represents what's actually in the JWT claims.
+ */
+export interface JWTPayload {
+	readonly sub: EthAddress; // Subject = wallet address
+	readonly exp: number; // Expiration timestamp (Unix seconds)
+	readonly iat: number; // Issued at timestamp (Unix seconds)
+}
+
+/**
  * Represents an authenticated user in the system.
- * All fields are readonly to ensure immutability.
+ * Note: Currently backend only provides address via JWT.
+ * Other fields are populated client-side or will be added later.
  */
 export interface User {
 	readonly id: string;
