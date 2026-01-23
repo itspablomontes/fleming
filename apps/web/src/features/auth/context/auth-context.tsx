@@ -7,9 +7,14 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
-import { useConnection, useConnect, useDisconnect, useSignMessage } from "wagmi";
+import {
+	useConnect,
+	useConnection,
+	useDisconnect,
+	useSignMessage,
+} from "wagmi";
 import { injected } from "wagmi/connectors";
-import { setCookie, deleteCookie } from "@/lib/cookie-utils";
+import { deleteCookie, setCookie } from "@/lib/cookie-utils";
 import {
 	login as apiLogin,
 	logout as apiLogout,
@@ -194,7 +199,5 @@ export function AuthProvider({ children }: AuthProviderProps) {
 		isWalletConnected,
 	};
 
-	return (
-		<AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-	);
+	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
