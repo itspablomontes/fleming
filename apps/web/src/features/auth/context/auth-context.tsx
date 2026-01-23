@@ -9,7 +9,7 @@ import {
 import { toast } from "sonner";
 import { useConnection, useConnect, useDisconnect, useSignMessage } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { getCookie } from "@/lib/cookie-utils";
+import { setCookie, deleteCookie } from "@/lib/cookie-utils";
 import {
 	login as apiLogin,
 	logout as apiLogout,
@@ -19,6 +19,7 @@ import {
 
 export const AuthStatus = {
 	Idle: "idle",
+	Initializing: "initializing",
 	Connecting: "connecting",
 	Signing: "signing",
 	Authenticated: "authenticated",
@@ -43,7 +44,7 @@ interface AuthContextValue extends AuthState {
 }
 
 const initialState: AuthState = {
-	status: AuthStatus.Idle,
+	status: AuthStatus.Initializing,
 	address: null,
 	error: null,
 };
@@ -69,17 +70,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 	useEffect(() => {
 		const initAuth = async () => {
-			// Check for session hint before verification to avoid console errors
-			const hasSessionHint = getCookie("fleming_has_session");
-			if (!hasSessionHint) return;
-
-			const userData = await checkAuth();
-			if (userData) {
-				setState({
-					status: AuthStatus.Authenticated,
-					address: userData.address,
-					error: null,
-				});
+			console.debug("[Auth] Initializing...");
+			try {
+				const userData = await checkAuth();
+				if (userData) {
+					console.debug("[Auth] User data found:", userData.address);
+					setState({
+						status: AuthStatus.Authenticated,
+						address: userData.address,
+						error: null,
+					});
+					setCookie("fleming_has_session", "true", 7);
+				} else {
+					console.debug("[Auth] No session found on server");
+					setState((prev) => ({ ...prev, status: AuthStatus.Idle }));
+					deleteCookie("fleming_has_session");
+				}
+			} catch (error) {
+				console.error("[Auth] Initialization error:", error);
+				setState((prev) => ({ ...prev, status: AuthStatus.Idle }));
+				deleteCookie("fleming_has_session");
 			}
 		};
 		initAuth();
@@ -122,9 +132,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 				error: null,
 			});
 
+			console.debug("[Auth] Login successful for:", currentAddress);
+			setCookie("fleming_has_session", "true", 7);
 			toast.success("Successfully signed in!");
 
-			navigate({ to: "/timeline" });
+			navigate({ to: "/" });
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : "Authentication failed";
@@ -159,7 +171,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 			console.error("Logout error:", error);
 		}
 		disconnectWallet();
-		setState(initialState);
+		deleteCookie("fleming_has_session");
+		setState({ ...initialState, status: AuthStatus.Idle });
 		navigate({ to: "/" });
 		toast.success("Logged out");
 	}, [disconnectWallet, navigate]);
@@ -167,6 +180,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 	const isAuthenticated =
 		state.status === AuthStatus.Authenticated && !!state.address;
 	const isLoading =
+		state.status === AuthStatus.Initializing ||
 		state.status === AuthStatus.Connecting ||
 		state.status === AuthStatus.Signing;
 
@@ -180,5 +194,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 		isWalletConnected,
 	};
 
-	return <AuthContext value={value}>{children}</AuthContext>;
+	return (
+		<AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+	);
 }
