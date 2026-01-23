@@ -8,9 +8,9 @@ import { cn } from "@/lib/utils";
 const consentBadgeVariants = cva("inline-flex items-center gap-1.5", {
 	variants: {
 		state: {
-			requested: "bg-warning/15 text-warning-foreground border-warning/30",
-			pending: "bg-warning/15 text-warning-foreground border-warning/30",
-			granted: "bg-success/15 text-success border-success/30",
+			requested: "bg-warning/15 text-[color:var(--warning-text)] border-warning/30",
+			pending: "bg-warning/15 text-[color:var(--warning-text)] border-warning/30",
+			granted: "bg-success/15 text-[color:var(--success-text)] border-success/30",
 			denied: "bg-muted text-muted-foreground border-border",
 			revoked: "bg-destructive/15 text-destructive border-destructive/30",
 			expired: "bg-muted text-muted-foreground border-border",
@@ -52,7 +52,7 @@ export function ConsentBadge({
 	return (
 		<Badge
 			variant="outline"
-			className={cn(consentBadgeVariants({ state }), className)}
+			className={cn(consentBadgeVariants({ state }), "dark", className)}
 		>
 			<Icon
 				className={cn("h-3.5 w-3.5", isPending && "animate-spin")}

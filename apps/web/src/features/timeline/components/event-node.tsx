@@ -72,10 +72,10 @@ function EventNodeComponent({ data }: { data: EventNodeData }) {
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: Cannot use <button> as it contains <Handle> divs
 		<div
-			className="event-node"
+			className="event-node group"
 			style={{
-				backgroundColor: colors.bg,
-				borderColor: isSelected ? colors.border : `${colors.border}60`,
+				backgroundColor: "var(--card)",
+				borderColor: isSelected ? colors.border : "var(--border)",
 				borderWidth: 1,
 				borderStyle: "solid",
 				borderRadius: 16,
@@ -85,8 +85,8 @@ function EventNodeComponent({ data }: { data: EventNodeData }) {
 				cursor: "pointer",
 				backdropFilter: "blur(12px)",
 				boxShadow: isSelected
-					? `0 0 20px ${colors.glow}, 0 0 40px ${colors.glow}`
-					: `0 4px 20px rgba(0,0,0,0.3)`,
+					? `0 0 20px var(--glow-primary), 0 0 40px var(--glow-primary)`
+					: `0 4px 20px rgba(0,0,0,0.1)`,
 				transition: "all 0.2s ease",
 			}}
 			onClick={() => onClick?.(event)}
@@ -103,7 +103,7 @@ function EventNodeComponent({ data }: { data: EventNodeData }) {
 				type="target"
 				position={Position.Left}
 				style={{
-					background: "#0b1221",
+					background: "var(--background)",
 					width: 12,
 					height: 12,
 					border: `2px solid ${colors.border}`,
@@ -120,6 +120,7 @@ function EventNodeComponent({ data }: { data: EventNodeData }) {
 				}}
 			>
 				<div
+					className="dark"
 					style={{
 						backgroundColor: colors.border,
 						borderRadius: 8,
@@ -150,7 +151,7 @@ function EventNodeComponent({ data }: { data: EventNodeData }) {
 				style={{
 					fontSize: 15,
 					fontWeight: 600,
-					color: "#ffffff", // Pure white for maximum contrast
+					color: "var(--foreground)",
 					marginBottom: 6,
 					overflow: "hidden",
 					textOverflow: "ellipsis",
@@ -164,7 +165,7 @@ function EventNodeComponent({ data }: { data: EventNodeData }) {
 			<div
 				style={{
 					fontSize: 12,
-					color: "#cbd5e1", // Slate-300 for readable secondary text
+					color: "var(--muted-foreground)",
 					display: "flex",
 					justifyContent: "space-between",
 					alignItems: "center",
@@ -179,7 +180,7 @@ function EventNodeComponent({ data }: { data: EventNodeData }) {
 							textOverflow: "ellipsis",
 							whiteSpace: "nowrap",
 							maxWidth: 120,
-							color: colors.text, // Subtle type-specific color for provider
+							color: "var(--primary)", // Use primary for provider info
 							opacity: 0.9,
 						}}
 					>

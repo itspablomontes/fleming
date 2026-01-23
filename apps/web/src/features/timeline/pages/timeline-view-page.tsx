@@ -71,26 +71,22 @@ export function TimelineViewPage() {
 				};
 			})
 			.filter(Boolean) as {
-			event: TimelineEvent;
-			edge: EventEdge;
-			direction: "incoming" | "outgoing";
-		}[];
+				event: TimelineEvent;
+				edge: EventEdge;
+				direction: "incoming" | "outgoing";
+			}[];
 	}, [selectedEvent, data]);
 
 	return (
 		<div
 			className="flex flex-col h-screen bg-background text-foreground overflow-hidden"
-			style={{
-				backgroundColor: "#050a14",
-			}}
 		>
 			{/* Background Timeline Layer */}
 			<div
-				className={`absolute inset-0 z-0 flex items-center transition-all duration-700 ease-in-out pointer-events-none ${
-					selectedEvent
-						? "opacity-30 -translate-y-1/3 blur-[1.4px]"
-						: "opacity-100 translate-y-0"
-				}`}
+				className={`absolute inset-0 z-0 flex items-center transition-all duration-700 ease-in-out pointer-events-none ${selectedEvent
+					? "opacity-30 -translate-y-1/3 blur-[1.4px]"
+					: "opacity-100 translate-y-0"
+					}`}
 			>
 				{isLoading ? (
 					<div className="flex items-center justify-center w-full h-full">
@@ -154,10 +150,10 @@ export function TimelineViewPage() {
 			<style>{`
 				@keyframes pulse {
 					0%, 100% {
-						box-shadow: 0 0 20px var(--glow-color, rgba(34, 211, 238, 0.5));
+						box-shadow: 0 0 20px var(--glow-primary);
 					}
 					50% {
-						box-shadow: 0 0 35px var(--glow-color, rgba(34, 211, 238, 0.7));
+						box-shadow: 0 0 35px var(--glow-primary);
 					}
 				}
 			`}</style>

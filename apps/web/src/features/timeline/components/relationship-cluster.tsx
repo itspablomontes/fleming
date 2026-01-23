@@ -89,12 +89,13 @@ export function RelationshipCluster({
 		// Create edges
 		const flowEdges: Edge[] = relatedEvents.map(({ edge, event }) => {
 			// Determine color based on relationship type
-			let edgeColor = "#22d3ee"; // Default Cyan
+			let edgeColor = "var(--primary)"; // Default Cyan
 			if (edge.relationshipType === "contradicts")
-				edgeColor = "#ef4444"; // Red
+				edgeColor = "var(--destructive)"; // Red
 			else if (edge.relationshipType === "resulted_in")
-				edgeColor = "#22c55e"; // Green
-			else if (edge.relationshipType === "supports") edgeColor = "#3b82f6"; // Blue
+				edgeColor = "var(--success)"; // Green
+			else if (edge.relationshipType === "supports")
+				edgeColor = "var(--info)"; // Blue
 
 			return {
 				id: `${centerEvent.id}-${event.id}`,
@@ -146,7 +147,8 @@ export function RelationshipCluster({
 					variant={BackgroundVariant.Dots}
 					gap={30} // Increased gap for airy feel
 					size={1}
-					color="rgba(34, 211, 238, 0.1)"
+					color="var(--muted-foreground)"
+					className="opacity-20"
 				/>
 				<Controls
 					showInteractive={false}

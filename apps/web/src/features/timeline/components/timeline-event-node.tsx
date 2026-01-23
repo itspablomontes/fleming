@@ -130,11 +130,11 @@ function TimelineEventNodeComponent({
 				}}
 			>
 				<Icon
-					className={`${isSelected ? "text-white" : ""}`}
+					className={`${isSelected ? "text-background" : ""}`}
 					style={{
 						width: size * 0.5,
 						height: size * 0.5,
-						color: isSelected ? "#ffffff" : colors.border,
+						color: isSelected ? "var(--background)" : colors.border,
 					}}
 				/>
 			</button>
@@ -147,12 +147,12 @@ function TimelineEventNodeComponent({
 						top: -80,
 						left: "50%",
 						transform: "translateX(-50%)",
-						backgroundColor: "#0b1221",
-						border: `1px solid ${colors.border}40`,
+						backgroundColor: "var(--popover)",
+						border: `1px solid ${colors.border}`,
 						borderRadius: 10,
 						padding: "10px 14px",
 						minWidth: 160,
-						boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+						boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
 						zIndex: 100,
 						pointerEvents: "none",
 					}}
@@ -173,7 +173,7 @@ function TimelineEventNodeComponent({
 						style={{
 							fontSize: 13,
 							fontWeight: 600,
-							color: "#ffffff",
+							color: "var(--popover-foreground)",
 							marginBottom: 4,
 							whiteSpace: "nowrap",
 							overflow: "hidden",
@@ -186,7 +186,7 @@ function TimelineEventNodeComponent({
 					<div
 						style={{
 							fontSize: 11,
-							color: "#94a3b8",
+							color: "var(--muted-foreground)",
 						}}
 					>
 						{formattedDate}
@@ -201,9 +201,9 @@ function TimelineEventNodeComponent({
 							transform: "translateX(-50%) rotate(45deg)",
 							width: 12,
 							height: 12,
-							backgroundColor: "#0b1221",
-							borderRight: `1px solid ${colors.border}40`,
-							borderBottom: `1px solid ${colors.border}40`,
+							backgroundColor: "var(--popover)",
+							borderRight: `1px solid ${colors.border}`,
+							borderBottom: `1px solid ${colors.border}`,
 						}}
 					/>
 				</div>
@@ -225,7 +225,7 @@ function TimelineEventNodeComponent({
 						style={{
 							fontSize: 12,
 							fontWeight: 600,
-							color: "#ffffff",
+							color: "var(--foreground)",
 							marginTop: 8,
 						}}
 					>

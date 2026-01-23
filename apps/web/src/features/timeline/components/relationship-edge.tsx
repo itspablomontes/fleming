@@ -55,8 +55,9 @@ function RelationshipEdgeComponent({
 					...style, // Use dynamic color from parent
 					strokeWidth: selected ? 2.5 : 1.5,
 					stroke: selected
-						? "#ffffff"
-						: style?.stroke || "rgba(34, 211, 238, 0.4)", // White on select, else type color
+						? "var(--foreground)"
+						: style?.stroke || "var(--primary)", // White on select, else theme primary
+					opacity: selected ? 1 : 0.4,
 				}}
 				markerEnd={markerEnd} // Pass markerEnd so arrowheads match color
 			/>
@@ -68,14 +69,14 @@ function RelationshipEdgeComponent({
 							transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
 							fontSize: 10,
 							fontWeight: 700,
-							color: selected ? "#ffffff" : "#22d3ee",
-							backgroundColor: "#0b1221", // --card color from DeSci theme
+							color: selected ? "var(--foreground)" : "var(--primary)",
+							backgroundColor: "var(--card)",
 							padding: "4px 10px",
 							borderRadius: 6,
-							border: `1px solid ${selected ? "#22d3ee" : "rgba(34, 211, 238, 0.3)"}`,
+							border: `1px solid ${selected ? "var(--primary)" : "var(--border)"}`,
 							pointerEvents: "all",
 							backdropFilter: "blur(4px)",
-							boxShadow: selected ? "0 0 15px rgba(34, 211, 238, 0.4)" : "none",
+							boxShadow: selected ? "0 0 15px var(--glow-primary)" : "none",
 						}}
 						className="nodrag nopan"
 					>

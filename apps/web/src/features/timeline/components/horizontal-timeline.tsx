@@ -557,9 +557,10 @@ export function HorizontalTimeline({
 						right: 0,
 						height: 1, // Ultra thin sleek line
 						background:
-							"linear-gradient(90deg, transparent, #334155 10%, #334155 90%, transparent)", // Fade edges
-						boxShadow: "0 0 10px rgba(148, 163, 184, 0.1)", // Subtle glow
+							"linear-gradient(90deg, transparent, var(--border) 10%, var(--border) 90%, transparent)", // Fade edges
+						boxShadow: "0 0 10px var(--muted-foreground)", // Subtle glow
 						borderRadius: 0,
+						opacity: 0.5,
 						zIndex: 0,
 					}}
 				/>
@@ -573,9 +574,9 @@ export function HorizontalTimeline({
 						right: 40,
 						height: 1,
 						background:
-							"linear-gradient(90deg, transparent, #22d3ee 10%, #22d3ee 90%, transparent)", // Cyan active range with fade
+							"linear-gradient(90deg, transparent, var(--primary) 10%, var(--primary) 90%, transparent)", // Cyan active range with fade
 						opacity: 0.6,
-						boxShadow: "0 0 15px rgba(34, 211, 238, 0.3)", // Cyan glow
+						boxShadow: "0 0 15px var(--glow-primary)", // Cyan glow
 						zIndex: 1,
 					}}
 				/>
@@ -601,8 +602,8 @@ export function HorizontalTimeline({
 									// Gradient stem: Fades from node color down to line
 									background:
 										isSelected || hoveredEventId === event.id
-											? "linear-gradient(to bottom, #22d3ee, rgba(34, 211, 238, 0.1))"
-											: "linear-gradient(to bottom, #475569, rgba(71, 85, 105, 0.1))",
+											? "linear-gradient(to bottom, var(--primary), transparent)"
+											: "linear-gradient(to bottom, var(--muted-foreground), transparent)",
 									transform: "translateX(-50%)",
 									transition: "all 0.3s ease",
 									pointerEvents: "none",
@@ -621,8 +622,8 @@ export function HorizontalTimeline({
 									borderRadius: "50%",
 									backgroundColor:
 										isSelected || hoveredEventId === event.id
-											? "#22d3ee"
-											: "#475569",
+											? "var(--primary)"
+											: "var(--muted-foreground)",
 									transform: "translate(-50%, -50%)",
 									transition: "all 0.3s ease",
 									zIndex: 2,
@@ -693,9 +694,12 @@ export function HorizontalTimeline({
 										fill="none"
 										stroke={
 											hoveredEventId && !selectedEventId
-												? "rgba(34, 211, 238, 0.4)"
-												: "rgba(34, 211, 238, 0.6)"
+												? "var(--primary)"
+												: "var(--primary)"
 										}
+										style={{
+											opacity: hoveredEventId && !selectedEventId ? 0.4 : 0.6,
+										}}
 										strokeWidth={2}
 										strokeDasharray="4 4"
 									/>

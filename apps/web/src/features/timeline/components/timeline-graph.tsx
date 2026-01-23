@@ -85,7 +85,7 @@ function graphDataToFlow(
 			type: MarkerType.ArrowClosed,
 			width: 15,
 			height: 15,
-			color: "#22d3ee", // cyan-400 for dark theme
+			color: "var(--primary)",
 		},
 		data: {
 			relationshipType: edge.relationshipType,
@@ -154,7 +154,9 @@ export function TimelineGraph({
 					variant={BackgroundVariant.Dots}
 					gap={24}
 					size={1}
-					color="rgba(34, 211, 238, 0.15)" // cyan dots
+					// Use a very light opacity primary for background pattern
+					color="var(--muted-foreground)"
+					className="opacity-20"
 				/>
 
 				{/* Custom arrowhead marker */}
@@ -170,7 +172,7 @@ export function TimelineGraph({
 						>
 							<polygon
 								points="0 0, 15 7.5, 0 15"
-								fill="#22d3ee" // cyan-400
+								fill="var(--primary)"
 							/>
 						</marker>
 					</defs>

@@ -1,5 +1,6 @@
 import {
 	AlertTriangle,
+	ClipboardList,
 	Eye,
 	File,
 	FileCheck,
@@ -24,12 +25,15 @@ import {
 } from "../types";
 
 const iconComponents: Record<TimelineEventType, React.ElementType> = {
-	lab_result: TestTube2,
+	consultation: Stethoscope,
+	diagnosis: ClipboardList,
 	prescription: Pill,
+	procedure: Stethoscope,
+	lab_result: TestTube2,
 	imaging: ScanLine,
+	note: FileText,
 	visit_note: FileText,
 	vaccination: Syringe,
-	procedure: Stethoscope,
 	allergy: AlertTriangle,
 	vital_signs: HeartPulse,
 	referral: UserPlus,
@@ -52,11 +56,12 @@ export function TimelineItem({ event, onView, className }: TimelineItemProps) {
 	const Icon = iconComponents[event.type];
 	const typeLabel = EVENT_TYPE_LABELS[event.type];
 
+	const timestamp = new Date(event.timestamp);
 	const formattedDate = new Intl.DateTimeFormat("en-US", {
 		month: "short",
 		day: "numeric",
 		year: "numeric",
-	}).format(event.timestamp);
+	}).format(timestamp);
 
 	return (
 		<Card
@@ -74,13 +79,13 @@ export function TimelineItem({ event, onView, className }: TimelineItemProps) {
 					<div className="flex items-center justify-between">
 						<h3 className="font-semibold leading-none">{event.title}</h3>
 						<time
-							dateTime={event.timestamp.toISOString()}
+							dateTime={timestamp.toISOString()}
 							className="text-xs text-muted-foreground"
 						>
 							{formattedDate}
 						</time>
 					</div>
-					<Badge variant="secondary" className="text-xs">
+					<Badge variant="secondary" className="text-xs dark">
 						{typeLabel}
 					</Badge>
 				</div>
@@ -101,7 +106,7 @@ export function TimelineItem({ event, onView, className }: TimelineItemProps) {
 						{event.isEncrypted && (
 							<Badge
 								variant="outline"
-								className="gap-1 text-xs text-success border-success/30"
+								className="gap-1 text-xs text-success border-success/30 dark"
 							>
 								<Lock className="h-3 w-3" />
 								Encrypted

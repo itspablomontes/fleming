@@ -97,8 +97,8 @@ export function EventDetailSheet({
 				top: 0,
 				bottom: 0,
 				width: 400,
-				backgroundColor: "white",
-				borderLeft: "1px solid #e2e8f0",
+				backgroundColor: "var(--background)",
+				borderLeft: "1px solid var(--border)",
 				boxShadow: "-4px 0 20px rgba(0,0,0,0.1)",
 				display: "flex",
 				flexDirection: "column",
@@ -109,15 +109,16 @@ export function EventDetailSheet({
 			<div
 				style={{
 					padding: 20,
-					borderBottom: "1px solid #e2e8f0",
+					borderBottom: "1px solid var(--border)",
 					display: "flex",
 					alignItems: "flex-start",
 					gap: 16,
 				}}
 			>
 				<div
+					className="dark"
 					style={{
-						backgroundColor: colors.bg,
+						backgroundColor: colors.border,
 						borderRadius: 12,
 						padding: 12,
 						display: "flex",
@@ -125,14 +126,14 @@ export function EventDetailSheet({
 						justifyContent: "center",
 					}}
 				>
-					<Icon style={{ width: 24, height: 24, color: colors.border }} />
+					<Icon style={{ width: 24, height: 24, color: "#ffffff" }} />
 				</div>
 				<div style={{ flex: 1 }}>
 					<div
 						style={{
 							fontSize: 11,
 							fontWeight: 600,
-							color: colors.text,
+							color: "var(--primary)",
 							textTransform: "uppercase",
 							letterSpacing: "0.5px",
 							marginBottom: 4,
@@ -144,7 +145,7 @@ export function EventDetailSheet({
 						style={{
 							fontSize: 18,
 							fontWeight: 600,
-							color: "#1e293b",
+							color: "var(--foreground)",
 							margin: 0,
 						}}
 					>
@@ -166,7 +167,7 @@ export function EventDetailSheet({
 					}}
 					aria-label="Close"
 				>
-					<X style={{ width: 20, height: 20, color: "#64748b" }} />
+					<X style={{ width: 20, height: 20, color: "var(--muted-foreground)" }} />
 				</button>
 			</div>
 
@@ -188,8 +189,8 @@ export function EventDetailSheet({
 							marginBottom: 8,
 						}}
 					>
-						<Calendar style={{ width: 16, height: 16, color: "#64748b" }} />
-						<span style={{ fontSize: 14, color: "#475569" }}>
+						<Calendar style={{ width: 16, height: 16, color: "var(--muted-foreground)" }} />
+						<span style={{ fontSize: 14, color: "var(--foreground)" }}>
 							{formattedDate} at {formattedTime}
 						</span>
 					</div>
@@ -201,8 +202,8 @@ export function EventDetailSheet({
 								gap: 8,
 							}}
 						>
-							<User style={{ width: 16, height: 16, color: "#64748b" }} />
-							<span style={{ fontSize: 14, color: "#475569" }}>
+							<User style={{ width: 16, height: 16, color: "var(--muted-foreground)" }} />
+							<span style={{ fontSize: 14, color: "var(--foreground)" }}>
 								{event.provider}
 							</span>
 						</div>
@@ -216,7 +217,7 @@ export function EventDetailSheet({
 							style={{
 								fontSize: 12,
 								fontWeight: 600,
-								color: "#64748b",
+								color: "var(--muted-foreground)",
 								textTransform: "uppercase",
 								letterSpacing: "0.5px",
 								marginBottom: 8,
@@ -227,7 +228,7 @@ export function EventDetailSheet({
 						<p
 							style={{
 								fontSize: 14,
-								color: "#334155",
+								color: "var(--foreground)",
 								lineHeight: 1.6,
 								margin: 0,
 							}}
@@ -244,7 +245,7 @@ export function EventDetailSheet({
 							style={{
 								fontSize: 12,
 								fontWeight: 600,
-								color: "#64748b",
+								color: "var(--muted-foreground)",
 								textTransform: "uppercase",
 								letterSpacing: "0.5px",
 								marginBottom: 8,
@@ -254,7 +255,7 @@ export function EventDetailSheet({
 						</h3>
 						<div
 							style={{
-								backgroundColor: "#f8fafc",
+								backgroundColor: "var(--muted)",
 								borderRadius: 8,
 								padding: 12,
 							}}
@@ -266,20 +267,20 @@ export function EventDetailSheet({
 										display: "flex",
 										justifyContent: "space-between",
 										padding: "6px 0",
-										borderBottom: "1px solid #e2e8f0",
+										borderBottom: "1px solid var(--border)",
 									}}
 								>
 									<span
 										style={{
 											fontSize: 13,
-											color: "#64748b",
+											color: "var(--muted-foreground)",
 											textTransform: "capitalize",
 										}}
 									>
 										{key.replace(/_/g, " ")}
 									</span>
 									<span
-										style={{ fontSize: 13, color: "#1e293b", fontWeight: 500 }}
+										style={{ fontSize: 13, color: "var(--foreground)", fontWeight: 500 }}
 									>
 										{String(value)}
 									</span>
@@ -296,7 +297,7 @@ export function EventDetailSheet({
 							style={{
 								fontSize: 12,
 								fontWeight: 600,
-								color: "#64748b",
+								color: "var(--muted-foreground)",
 								textTransform: "uppercase",
 								letterSpacing: "0.5px",
 								marginBottom: 8,
@@ -321,8 +322,8 @@ export function EventDetailSheet({
 											alignItems: "center",
 											gap: 12,
 											padding: 12,
-											backgroundColor: "#f8fafc",
-											border: "1px solid #e2e8f0",
+											backgroundColor: "var(--card)",
+											border: "1px solid var(--border)",
 											borderRadius: 8,
 											cursor: "pointer",
 											textAlign: "left",
@@ -331,16 +332,17 @@ export function EventDetailSheet({
 									>
 										{direction === "outgoing" ? (
 											<ArrowRight
-												style={{ width: 14, height: 14, color: "#64748b" }}
+												style={{ width: 14, height: 14, color: "var(--muted-foreground)" }}
 											/>
 										) : (
 											<ArrowLeft
-												style={{ width: 14, height: 14, color: "#64748b" }}
+												style={{ width: 14, height: 14, color: "var(--muted-foreground)" }}
 											/>
 										)}
 										<div
+											className="dark"
 											style={{
-												backgroundColor: relColors.bg,
+												backgroundColor: relColors.border,
 												borderRadius: 6,
 												padding: 6,
 											}}
@@ -349,7 +351,7 @@ export function EventDetailSheet({
 												style={{
 													width: 14,
 													height: 14,
-													color: relColors.border,
+													color: "#ffffff",
 												}}
 											/>
 										</div>
@@ -358,7 +360,7 @@ export function EventDetailSheet({
 												style={{
 													fontSize: 13,
 													fontWeight: 500,
-													color: "#1e293b",
+													color: "var(--foreground)",
 												}}
 											>
 												{relatedEvent.title}
@@ -366,7 +368,7 @@ export function EventDetailSheet({
 											<div
 												style={{
 													fontSize: 11,
-													color: "#64748b",
+													color: "var(--muted-foreground)",
 												}}
 											>
 												{RELATIONSHIP_LABELS[edge.relationshipType]}

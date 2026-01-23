@@ -6,19 +6,24 @@ const STORAGE_KEY = "fleming-theme";
 
 /**
  * Theme hook with localStorage persistence.
- * Applies theme class to documentElement.
+ * Applies 'dark' class to documentElement for theme management.
+ * Default is 'dark'.
  */
 export function useTheme() {
 	const [theme, setTheme] = useState<Theme>(() => {
 		if (typeof window === "undefined") return "dark";
 		const stored = localStorage.getItem(STORAGE_KEY);
+		// Default to dark unless explicitly light
 		return stored === "light" ? "light" : "dark";
 	});
 
 	useEffect(() => {
 		const root = document.documentElement;
-		root.classList.remove("dark", "light");
-		root.classList.add(theme);
+		if (theme === "dark") {
+			root.classList.add("dark");
+		} else {
+			root.classList.remove("dark");
+		}
 		localStorage.setItem(STORAGE_KEY, theme);
 	}, [theme]);
 
