@@ -312,3 +312,12 @@
   font-family: var(--font-mono);
   font-feature-settings: "tnum", "ss01";
 }
+
+/* Hide scrollbar while maintaining functionality */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
