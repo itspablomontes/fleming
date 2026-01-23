@@ -15,14 +15,27 @@ We write **clean, maintainable, type-safe, SOLID-compliant** React code.
 
 ## 1. Tooling & Language Discipline
 
-| Tool | Purpose |
-|------|---------|
-| **Build** | Vite 7 (Rolldown) + `@vitejs/plugin-react-swc` |
-| **Lint/Format** | Biome (`@biomejs/biome`). No ESLint/Prettier. |
-| **Styling** | Tailwind CSS v4 + `clsx` + `tailwind-merge` + `cva` |
-| **Forms** | TanStack Form + Zod |
-| **Routing** | TanStack Router (file-based) |
-| **State** | React Query for server state, Context for DI |
+| Tool            | Purpose                                             |
+| --------------- | --------------------------------------------------- |
+| **Build**       | Vite 7 (Rolldown) + `@vitejs/plugin-react-swc`      |
+| **Lint/Format** | Biome (`@biomejs/biome`). No ESLint/Prettier.       |
+| **Styling**     | Tailwind CSS v4 + `clsx` + `tailwind-merge` + `cva` |
+| **Forms**       | TanStack Form + Zod                                 |
+| **Routing**     | TanStack Router (file-based)                        |
+| **State**       | React Query for server state, Context for DI        |
+
+### Dark Mode Pattern
+**Always include dark mode variants** when styling components:
+```tsx
+// ❌ Bad: Light mode only
+<div className="bg-white text-gray-900" />
+
+// ✅ Good: Both themes
+<div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+```
+- Use `dark:` prefix for dark mode overrides
+- Theme class applied to `<html>` element
+- Default: dark mode
 
 ---
 
@@ -59,13 +72,13 @@ export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 ## 3. Component Design
 
 ### SOLID Principles Applied
-| Principle | React Application |
-|-----------|-------------------|
-| **SRP** | One component = one concern. Extract logic to hooks. |
-| **OCP** | Extend via composition (slots, children), not boolean flags. |
-| **LSP** | Custom components accept standard HTML props. |
-| **ISP** | Props should be minimal. Don't pass entire objects. |
-| **DIP** | Components depend on props/hooks, not global imports. |
+| Principle | React Application                                            |
+| --------- | ------------------------------------------------------------ |
+| **SRP**   | One component = one concern. Extract logic to hooks.         |
+| **OCP**   | Extend via composition (slots, children), not boolean flags. |
+| **LSP**   | Custom components accept standard HTML props.                |
+| **ISP**   | Props should be minimal. Don't pass entire objects.          |
+| **DIP**   | Components depend on props/hooks, not global imports.        |
 
 ### Best Practices
 ```tsx
@@ -96,12 +109,12 @@ export function Card({ title, footer, children }: CardProps) {
 
 ## 4. Routing (TanStack Router)
 
-| Rule | Description |
-|------|-------------|
-| **File-based** | Routes live in `apps/web/src/routes/` |
-| **Typesafe** | Rely on generated `routeTree.gen.ts` |
-| **Thin routes** | Route files = routing config only. Import Page from `features/`. |
-| **`<Link>` only** | Never use `<a>` for internal navigation. |
+| Rule              | Description                                                      |
+| ----------------- | ---------------------------------------------------------------- |
+| **File-based**    | Routes live in `apps/web/src/routes/`                            |
+| **Typesafe**      | Rely on generated `routeTree.gen.ts`                             |
+| **Thin routes**   | Route files = routing config only. Import Page from `features/`. |
+| **`<Link>` only** | Never use `<a>` for internal navigation.                         |
 
 ### Loaders & Search Params
 ```typescript
@@ -117,12 +130,12 @@ export const Route = createFileRoute('/timeline')({
 
 ## 5. React 19 Specifics
 
-| Feature | Usage |
-|---------|-------|
-| **Actions** | Use `useActionState` for mutations |
-| **Suspense** | Embrace `<Suspense>` boundaries |
-| **`use()`** | Replace `useContext` with `use(Context)` |
-| **Refs** | Pass `ref` as prop (no `forwardRef` needed) |
+| Feature      | Usage                                       |
+| ------------ | ------------------------------------------- |
+| **Actions**  | Use `useActionState` for mutations          |
+| **Suspense** | Embrace `<Suspense>` boundaries             |
+| **`use()`**  | Replace `useContext` with `use(Context)`    |
+| **Refs**     | Pass `ref` as prop (no `forwardRef` needed) |
 
 ---
 

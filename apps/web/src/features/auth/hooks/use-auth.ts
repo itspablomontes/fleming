@@ -1,4 +1,4 @@
-import { use } from "react";
+import { useContext } from "react";
 import { AuthContext, type AuthStatus } from "../context/auth-context";
 
 export interface UseAuthReturn {
@@ -18,7 +18,7 @@ export interface UseAuthReturn {
  * Must be used within an AuthProvider.
  */
 export function useAuth(): UseAuthReturn {
-	const context = use(AuthContext);
+	const context = useContext(AuthContext);
 
 	if (!context) {
 		throw new Error("useAuth must be used within an AuthProvider");

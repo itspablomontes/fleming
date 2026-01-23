@@ -49,6 +49,8 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 
 	authHandler.RegisterRoutes(r.Group("/auth"))
 
+	r.GET("/auth/me", middleware.AuthMiddleware(authService), authHandler.HandleMe)
+
 	apiGroup := r.Group("/api")
 	apiGroup.Use(middleware.AuthMiddleware(authService))
 	timelineHandler.RegisterRoutes(apiGroup)
