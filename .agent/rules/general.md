@@ -25,6 +25,41 @@ description: Core project philosophy and engineering principles. Always active.
 - Document "why", not just "what".
 - Prefer boring, battle-tested solutions over clever hacks.
 
+### The Fleming Protocol (Mental Model)
+
+> **The Protocol is the foundation. Applications are built on top of it.**
+
+```
+┌─────────────────────────────────────────────────┐
+│           Applications (apps/)                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────┐  │
+│  │   Backend   │  │     Web     │  │ Future  │  │
+│  │  (Go API)   │  │   (React)   │  │ (Mobile)│  │
+│  └──────┬──────┘  └──────┬──────┘  └────┬────┘  │
+│         │                │              │       │
+│         ▼                ▼              ▼       │
+│  ┌─────────────────────────────────────────────┐│
+│  │         Fleming Protocol (pkg/protocol)     ││
+│  │  • Data Types & Schemas                     ││
+│  │  • Encryption Primitives                    ││
+│  │  • Timeline Event Definitions               ││
+│  │  • Consent Semantics                        ││
+│  └─────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────┘
+```
+
+| Layer | Location | Responsibility |
+|:---|:---|:---|
+| **Protocol** | `pkg/protocol/` | Source of truth for data shapes, encryption, consent |
+| **Backend** | `apps/backend/` | HTTP API that implements the protocol |
+| **Web** | `apps/web/` | UI that consumes the protocol via API |
+
+**Implications**:
+1. **Protocol types are canonical**: Go types in `pkg/protocol/` define what data looks like. TypeScript types mirror them.
+2. **Apps depend on protocol, not vice versa**: Never import from `apps/` into `pkg/`.
+3. **Third-party compatibility**: Future apps (mobile, CLI, external tools) implement the same protocol.
+4. **Schema evolution**: Protocol changes require migration plans for all consumers.
+
 ---
 
 ## 2. Critical Thinking Requirements
