@@ -54,6 +54,8 @@ func main() {
 	if err := db.AutoMigrate(
 		&auth.Challenge{},
 		&timeline.TimelineEvent{},
+		&timeline.EventEdge{},
+		&timeline.EventFile{},
 	); err != nil {
 		slog.Error("failed to auto-migrate schema", "error", err)
 		os.Exit(1)
