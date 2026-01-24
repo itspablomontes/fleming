@@ -92,8 +92,7 @@ func (r *GormRepository) GetRelatedEvents(ctx context.Context, eventID string, m
 	var events []TimelineEvent
 	query := `
 		WITH RECURSIVE related_events AS (
-			-- Base case: the starting event
-			SELECT e.id, e.patient_id, e.type, e.title, e.description, e.provider,
+			SELECT e.id, e.patient_id, e.type, e.title, e.description, e.provider, e.codes,
 			       e.timestamp, e.blob_ref, e.is_encrypted, e.metadata, e.created_at, e.updated_at,
 			       0 as depth, ARRAY[e.id] as path
 			FROM timeline_events e
@@ -101,8 +100,7 @@ func (r *GormRepository) GetRelatedEvents(ctx context.Context, eventID string, m
 
 			UNION ALL
 
-			-- Recursive case: follow edges in both directions
-			SELECT e2.id, e2.patient_id, e2.type, e2.title, e2.description, e2.provider,
+			SELECT e2.id, e2.patient_id, e2.type, e2.title, e2.description, e2.provider, e2.codes,
 			       e2.timestamp, e2.blob_ref, e2.is_encrypted, e2.metadata, e2.created_at, e2.updated_at,
 			       re.depth + 1, re.path || e2.id
 			FROM related_events re
@@ -116,7 +114,7 @@ func (r *GormRepository) GetRelatedEvents(ctx context.Context, eventID string, m
 			WHERE re.depth < ?
 			  AND NOT e2.id = ANY(re.path)
 		)
-		SELECT DISTINCT id, patient_id, type, title, description, provider,
+		SELECT DISTINCT id, patient_id, type, title, description, provider, codes,
 		       timestamp, blob_ref, is_encrypted, metadata, created_at, updated_at
 		FROM related_events
 		ORDER BY timestamp DESC

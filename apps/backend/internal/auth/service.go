@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/itspablomontes/fleming/pkg/protocol/crypto"
+	"github.com/itspablomontes/fleming/pkg/protocol/identity"
+	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
 var (
@@ -37,20 +38,6 @@ func NewService(repo Repository, jwtSecret string) *Service {
 	}
 }
 
-func buildSIWEMessage(address, nonce, domain, uri string, chainID int) string {
-	issuedAt := time.Now().UTC().Format(time.RFC3339)
-	return fmt.Sprintf(`%s wants you to sign in with your Ethereum account:
-%s
-
-Sign in to Fleming for secure access to your medical data.
-
-URI: %s
-Version: 1
-Chain ID: %d
-Nonce: %s
-Issued At: %s`, domain, address, uri, chainID, nonce, issuedAt)
-}
-
 func (s *Service) GenerateChallenge(ctx context.Context, req ChallengeRequest) (string, error) {
 	nonceBytes := make([]byte, 32)
 	if _, err := rand.Read(nonceBytes); err != nil {
@@ -58,7 +45,18 @@ func (s *Service) GenerateChallenge(ctx context.Context, req ChallengeRequest) (
 	}
 	nonce := hex.EncodeToString(nonceBytes)
 
-	message := buildSIWEMessage(req.Address, nonce, req.Domain, req.URI, req.ChainID)
+	addr, err := types.NewWalletAddress(req.Address)
+	if err != nil {
+		return "", fmt.Errorf("invalid address: %w", err)
+	}
+
+	message := identity.BuildSIWEMessage(identity.SIWEOptions{
+		Address: addr,
+		Domain:  req.Domain,
+		URI:     req.URI,
+		Nonce:   nonce,
+		ChainID: req.ChainID,
+	})
 	expiresAt := time.Now().Add(5 * time.Minute)
 
 	challenge := &Challenge{
@@ -93,7 +91,13 @@ func (s *Service) ValidateChallenge(ctx context.Context, address, signature stri
 		return "", ErrChallengeExpired
 	}
 
-	if !crypto.VerifySignature(challenge.Message, signature, address) {
+	addr, err := types.NewWalletAddress(address)
+	if err != nil {
+		return "", fmt.Errorf("invalid address: %w", err)
+	}
+
+	verifier := identity.NewVerifier()
+	if !verifier.VerifySignature(challenge.Message, signature, addr) {
 		slog.Warn("invalid signature", "address", address)
 		return "", ErrInvalidSignature
 	}

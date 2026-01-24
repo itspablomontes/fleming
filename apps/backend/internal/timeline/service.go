@@ -3,6 +3,8 @@ package timeline
 import (
 	"context"
 	"fmt"
+
+	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
 )
 
 type Service interface {
@@ -12,7 +14,7 @@ type Service interface {
 	UpdateEvent(ctx context.Context, event *TimelineEvent) error
 	DeleteEvent(ctx context.Context, id string) error
 
-	LinkEvents(ctx context.Context, fromID, toID string, relType RelationshipType) (*EventEdge, error)
+	LinkEvents(ctx context.Context, fromID, toID string, relType timeline.RelationshipType) (*EventEdge, error)
 	UnlinkEvents(ctx context.Context, edgeID string) error
 	GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error)
 	GetGraphData(ctx context.Context, patientID string) (*GraphData, error)
@@ -78,7 +80,7 @@ func (s *service) DeleteEvent(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *service) LinkEvents(ctx context.Context, fromID, toID string, relType RelationshipType) (*EventEdge, error) {
+func (s *service) LinkEvents(ctx context.Context, fromID, toID string, relType timeline.RelationshipType) (*EventEdge, error) {
 	if fromID == toID {
 		return nil, fmt.Errorf("service: cannot link event to itself")
 	}
@@ -105,10 +107,10 @@ func (s *service) UnlinkEvents(ctx context.Context, edgeID string) error {
 
 func (s *service) GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error) {
 	if maxDepth < 1 {
-		maxDepth = 2 // Default to 2 hops as per approved plan
+		maxDepth = 2
 	}
 	if maxDepth > 5 {
-		maxDepth = 5 // Safety limit
+		maxDepth = 5
 	}
 
 	events, err := s.repo.GetRelatedEvents(ctx, eventID, maxDepth)

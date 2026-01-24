@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
 )
 
 type MockRepo struct {
@@ -98,7 +100,7 @@ func TestService_AddEvent(t *testing.T) {
 			name: "valid event",
 			event: &TimelineEvent{
 				PatientID: "0x123",
-				Type:      EventTypeLabResult,
+				Type:      timeline.EventLabResult,
 				Title:     "Blood Test",
 				Timestamp: time.Now(),
 			},
@@ -107,7 +109,7 @@ func TestService_AddEvent(t *testing.T) {
 		{
 			name: "missing patient ID",
 			event: &TimelineEvent{
-				Type:      EventTypeLabResult,
+				Type:      timeline.EventLabResult,
 				Title:     "Blood Test",
 				Timestamp: time.Now(),
 			},

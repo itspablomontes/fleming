@@ -26,3 +26,24 @@ func (m *JSONMap) Scan(value interface{}) error {
 	}
 	return json.Unmarshal(bytes, &m)
 }
+
+type JSONCodes []interface{}
+
+func (c JSONCodes) Value() (driver.Value, error) {
+	if c == nil {
+		return nil, nil
+	}
+	return json.Marshal(c)
+}
+
+func (c *JSONCodes) Scan(value interface{}) error {
+	if value == nil {
+		*c = nil
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &c)
+}

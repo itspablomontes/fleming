@@ -53,7 +53,7 @@ func TestService_GenerateChallenge(t *testing.T) {
 		{
 			name: "valid request",
 			req: ChallengeRequest{
-				Address: "0x123",
+				Address: "0x1234567890abcdef1234567890abcdef12345678",
 				Domain:  "example.com",
 				URI:     "https://example.com",
 				ChainID: 1,
