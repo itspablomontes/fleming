@@ -2,7 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Logo } from "@/components/common/logo";
 import { ThemeToggle } from "@/components/common/theme-toggle";
-import { getGraphData } from "../api/get-graph";
+import { deleteEvent, getGraphData } from "../api";
 import { EventDrawer } from "../components/event-drawer";
 import { HorizontalTimeline } from "../components/horizontal-timeline";
 import { UploadFAB } from "../components/upload-fab";
@@ -13,23 +13,26 @@ export function TimelineViewPage() {
 	const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(
 		null,
 	);
+	const [editEvent, setEditEvent] = useState<TimelineEvent | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [data, setData] = useState<GraphData>({ events: [], edges: [] });
 	const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
-	useEffect(() => {
-		const loadaData = async () => {
-			try {
-				const graphData = await getGraphData();
-				setData(graphData);
-			} catch (error) {
-				console.error("Failed to load timeline data", error);
-			} finally {
-				setIsLoading(false);
-			}
-		};
-		loadaData();
+	const refreshData = useCallback(async () => {
+		try {
+			setIsLoading(true);
+			const graphData = await getGraphData();
+			setData(graphData);
+		} catch (error) {
+			console.error("Failed to load timeline data", error);
+		} finally {
+			setIsLoading(false);
+		}
 	}, []);
+
+	useEffect(() => {
+		refreshData();
+	}, [refreshData]);
 
 	const handleEventSelect = useCallback((event: TimelineEvent | null) => {
 		setSelectedEvent(event);
@@ -38,6 +41,24 @@ export function TimelineViewPage() {
 	const handleEventClick = useCallback((event: TimelineEvent) => {
 		setSelectedEvent(event);
 	}, []);
+
+	const handleEdit = useCallback((event: TimelineEvent) => {
+		setEditEvent(event);
+		setUploadModalOpen(true);
+	}, []);
+
+	const handleArchive = useCallback(async (event: TimelineEvent) => {
+		if (window.confirm("Are you sure you want to archive/delete this record? This action is immutable and will be recorded in your audit trail.")) {
+			try {
+				await deleteEvent(event.id);
+				await refreshData();
+				setSelectedEvent(null);
+			} catch (error) {
+				console.error("Failed to archive event", error);
+				alert("Failed to archive event. Please try again.");
+			}
+		}
+	}, [refreshData]);
 
 	const handleCloseDrawer = useCallback(() => {
 		setSelectedEvent(null);
@@ -131,6 +152,8 @@ export function TimelineViewPage() {
 				relatedEvents={relatedEvents}
 				onClose={handleCloseDrawer}
 				onEventClick={handleEventClick}
+				onEdit={handleEdit}
+				onArchive={handleArchive}
 			/>
 
 			{/* Upload FAB */}
@@ -139,10 +162,15 @@ export function TimelineViewPage() {
 			{/* Upload Modal */}
 			<UploadModal
 				isOpen={uploadModalOpen}
-				onClose={() => setUploadModalOpen(false)}
+				onClose={() => {
+					setUploadModalOpen(false);
+					setEditEvent(null);
+				}}
+				editEvent={editEvent}
+				onReset={() => setEditEvent(null)}
 				onSuccess={() => {
-					// TODO: Refresh timeline data when API is connected
-					console.log("Upload successful");
+					refreshData();
+					console.log("Operation successful");
 				}}
 			/>
 

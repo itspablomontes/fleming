@@ -1,5 +1,5 @@
 import { Loader2, Upload } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -17,22 +17,38 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { addEvent } from "../api";
-import { EVENT_TYPE_LABELS, TimelineEventType as EventTypes } from "../types";
+import { addEvent, correctEvent } from "../api";
+import { EVENT_TYPE_LABELS, type TimelineEvent, TimelineEventType as EventTypes } from "../types";
 
 interface UploadModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onSuccess?: () => void;
+	editEvent?: TimelineEvent | null;
+	onReset?: () => void;
 }
 
-export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
+export function UploadModal({ isOpen, onClose, onSuccess, editEvent, onReset }: UploadModalProps) {
 	const [file, setFile] = useState<File | null>(null);
 	const [eventType, setEventType] = useState<string>(EventTypes.VISIT_NOTE);
 	const [description, setDescription] = useState("");
 	const [provider, setProvider] = useState("");
 	const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
 	const [isUploading, setIsUploading] = useState(false);
+
+	useEffect(() => {
+		if (editEvent) {
+			setEventType(editEvent.type);
+			setDescription(editEvent.description || "");
+			setProvider(editEvent.provider || "");
+			setDate(new Date(editEvent.timestamp).toISOString().split("T")[0]);
+		} else {
+			setEventType(EventTypes.VISIT_NOTE);
+			setDescription("");
+			setProvider("");
+			setDate(new Date().toISOString().split("T")[0]);
+		}
+	}, [editEvent]);
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files?.[0]) {
@@ -41,26 +57,38 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
 	};
 
 	const handleUpload = async () => {
-		if (!file) return;
+		if (!editEvent && !file) return;
 
 		setIsUploading(true);
 		try {
-			await addEvent({
-				file,
-				eventType,
-				description,
-				provider,
-				date: new Date(date).toISOString(),
-			});
+			if (editEvent) {
+				await correctEvent({
+					id: editEvent.id,
+					eventType,
+					description,
+					provider,
+					date: new Date(date).toISOString(),
+					file: file || undefined,
+				});
+			} else {
+				await addEvent({
+					file: file!,
+					eventType,
+					description,
+					provider,
+					date: new Date(date).toISOString(),
+				});
+			}
 			onSuccess?.();
 			onClose();
+			onReset?.();
 			// Reset form
 			setFile(null);
 			setDescription("");
 			setProvider("");
 		} catch (error) {
-			console.error("Upload failed:", error);
-			alert("Failed to upload document. Please try again.");
+			console.error("Operation failed:", error);
+			alert(`Failed to ${editEvent ? "correct" : "upload"} document. Please try again.`);
 		} finally {
 			setIsUploading(false);
 		}
@@ -71,22 +99,21 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
 			<DialogContent className="sm:max-w-[425px] bg-white dark:bg-gray-950 border-cyan-200 dark:border-cyan-900">
 				<DialogHeader>
 					<DialogTitle className="text-2xl font-bold text-cyan-900 dark:text-cyan-50">
-						Upload Medical Document
+						{editEvent ? "Correct Medical Entry" : "Upload Medical Document"}
 					</DialogTitle>
 				</DialogHeader>
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
 						<Label htmlFor="file" className="text-cyan-900 dark:text-cyan-50">
-							Document File
+							{editEvent ? "Updated Document (Optional)" : "Document File"}
 						</Label>
 						<label
 							htmlFor="file-input"
-							className={`block border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-								file
-									? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10"
-									: "border-cyan-200 dark:border-cyan-800 hover:border-cyan-400 dark:hover:border-cyan-600"
-							}`}
+							className={`block border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${file
+								? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10"
+								: "border-cyan-200 dark:border-cyan-800 hover:border-cyan-400 dark:hover:border-cyan-600"
+								}`}
 						>
 							<input
 								id="file-input"
@@ -180,16 +207,16 @@ export function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
 					</Button>
 					<Button
 						onClick={handleUpload}
-						disabled={!file || isUploading}
+						disabled={(!editEvent && !file) || isUploading}
 						className="bg-emerald-600 hover:bg-emerald-700 text-white"
 					>
 						{isUploading ? (
 							<>
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Encrypting & Uploading...
+								{editEvent ? "Saving Correction..." : "Encrypting & Uploading..."}
 							</>
 						) : (
-							"Encrypt & Upload"
+							editEvent ? "Confirm Correction" : "Encrypt & Upload"
 						)}
 					</Button>
 				</DialogFooter>

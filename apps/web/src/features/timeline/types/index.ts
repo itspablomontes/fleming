@@ -27,6 +27,7 @@ export const TimelineEventType = {
 	VITAL_SIGNS: "vital_signs",
 	REFERRAL: "referral",
 	INSURANCE_CLAIM: "insurance_claim",
+	TOMBSTONE: "tombstone",
 	OTHER: "other",
 } as const;
 
@@ -50,6 +51,7 @@ export const EVENT_TYPE_LABELS: Record<TimelineEventType, string> = {
 	vital_signs: "Vital Signs",
 	referral: "Referral",
 	insurance_claim: "Insurance Claim",
+	tombstone: "Deleted Record",
 	other: "Other",
 };
 
@@ -70,6 +72,7 @@ export const EVENT_TYPE_ICONS: Record<TimelineEventType, string> = {
 	vital_signs: "HeartPulse",
 	referral: "UserPlus",
 	insurance_claim: "FileCheck",
+	tombstone: "Trash2",
 	other: "File",
 };
 
@@ -165,6 +168,12 @@ export const EVENT_TYPE_COLORS: Record<
 		text: "var(--event-other-text)",
 		glow: "var(--event-other-glow)",
 	},
+	tombstone: {
+		bg: "rgba(239, 68, 68, 0.1)",
+		border: "#ef4444",
+		text: "#ef4444",
+		glow: "rgba(239, 68, 68, 0.2)",
+	},
 };
 
 // =============================================================================
@@ -183,6 +192,8 @@ export const RelationshipType = {
 	FOLLOWS_UP: "follows_up", // visit → previous visit
 	CONTRADICTS: "contradicts", // finding → previous finding
 	ATTACHED_TO: "attached_to", // file → event
+	REPLACES: "replaces", // correction v2 → original v1
+	CAUSED_BY: "caused_by", // reaction → cause
 } as const;
 
 export type RelationshipType =
@@ -199,6 +210,8 @@ export const RELATIONSHIP_LABELS: Record<RelationshipType, string> = {
 	follows_up: "Follows Up",
 	contradicts: "Contradicts",
 	attached_to: "Attached To",
+	replaces: "Replaces",
+	caused_by: "Caused By",
 };
 
 // =============================================================================
