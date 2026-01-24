@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/itspablomontes/fleming/api/internal/common"
+	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
+	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
 type Handler struct {
@@ -82,15 +85,19 @@ func (h *Handler) HandleAddEvent(c *gin.Context) {
 	}
 
 	event := &TimelineEvent{
-		PatientID:    address,
-		Type:         TimelineEventType(eventType),
-		Title:        title,
-		Description:  description,
-		Provider:     provider,
-		Code:         code,
-		CodingSystem: codingSystem,
-		Timestamp:    timestamp,
-		IsEncrypted:  true,
+		PatientID:   address,
+		Type:        timeline.EventType(eventType),
+		Title:       title,
+		Description: description,
+		Provider:    provider,
+		Codes: common.JSONCodes{
+			types.Code{
+				System: types.CodingSystem(codingSystem),
+				Value:  code,
+			},
+		},
+		Timestamp:   timestamp,
+		IsEncrypted: true,
 	}
 
 	if err := h.service.AddEvent(c.Request.Context(), event); err != nil {
@@ -141,7 +148,7 @@ func (h *Handler) HandleLinkEvents(c *gin.Context) {
 		c.Request.Context(),
 		fromEventID,
 		req.ToEventID,
-		RelationshipType(req.RelationshipType),
+		timeline.RelationshipType(req.RelationshipType),
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

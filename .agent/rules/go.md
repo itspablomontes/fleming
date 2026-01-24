@@ -4,249 +4,272 @@ description: Go backend development rules.
 globs: "*.go"
 ---
 
-# Go Code Rules – Fleming Backend
+# Go Coding Guidelines – Fleming Backend
 
-> **See also**: general.md for project philosophy and engineering principles.
-
-We write **simple, readable, boring** Go that any experienced Gopher can understand quickly.
+> **See also**: `general.md` for project philosophy and engineering principles.  
+> We prioritize **simple, readable, and maintainable** Go code that any experienced Go developer can understand at a glance. Favor clarity over cleverness, explicitness over implicitness, and correctness over premature optimization.  
+> We use **Go 1.25+** to leverage modern language features, runtime improvements, and performance enhancements.
 
 ---
 
-## 1. Formatting & Tooling (Non-Negotiable)
+## 1. Tooling & Formatting (Non-Negotiable)
 
-| Tool | Command | Purpose |
-|------|---------|---------|
-| **Go Version** | 1.25+ | Match `go.mod` |
-| **Format** | `go fmt ./...` | Always run before commit |
-| **Imports** | `goimports` or `gci` | Auto-sort imports |
-| **Lint** | `golangci-lint run --fix` | Pre-commit or CI |
+| Tool/Command              | Purpose                                    | Notes                                               |
+| ------------------------- | ------------------------------------------ | --------------------------------------------------- |
+| **Go Version**            | `1.25+` (pin to latest stable in `go.mod`) | Use `go.mod` `go` directive to enforce              |
+| **Formatting**            | `gofumpt -w .` or `go fmt ./...`           | Stricter than `go fmt`; run pre-commit              |
+| **Imports**               | `goimports -w .` or `gci write .`          | Group and sort imports (std, third-party, internal) |
+| **Linting**               | `golangci-lint run --fix`                  | Run in pre-commit and CI                            |
+| **Vet & Static Analysis** | `go vet ./...`                             | Always include in CI                                |
 
-### Recommended Linters
+### Recommended `.golangci.yml` (minimal but effective set)
+
 ```yaml
-# .golangci.yml
 linters:
   enable:
-    - gosimple
-    - unused
-    - revive
-    - errcheck
-    - nilerr
+    - errcheck      # Checks for unchecked errors
+    - gosimple      # Suggests simplifications (included in staticcheck)
+    - staticcheck   # Comprehensive static analysis (SA, S, ST series)
+    - unused        # Detects unused code
+    - ineffassign   # Detects ineffective assignments
+    - bodyclose     # Ensures HTTP response bodies are closed
+    - nilerr        # Catches returning nil error with non-nil result
+    - revive        # Drop-in replacement for golint with better rules
+    - gofumpt       # Enforces stricter formatting
+    - misspell      # Catches common spelling mistakes
+
+issues:
+  exclude-use-default: false
 ```
 
 ---
 
 ## 2. Naming Conventions
 
-| Scope | Convention | Example |
-|-------|------------|---------|
-| Variables, functions | `camelCase` | `userID`, `fetchData` |
-| Exported types | `PascalCase` | `TimelineEvent`, `AuthService` |
-| Acronyms | UPPERCASE | `HTTPRequest`, `JWTToken` |
-| Short vars (small scope) | Short | `db`, `cfg`, `h`, `w`, `r` |
+Follow standard Go naming (Effective Go).
+
+| Scope                  | Convention   | Example                              |
+| ---------------------- | ------------ | ------------------------------------ |
+| Variables, functions   | `camelCase`  | `userID`, `fetchTimeline`            |
+| Exported types/methods | `PascalCase` | `TimelineEvent`, `AuthService`       |
+| Interfaces             | Descriptive  | `Repository`, not `UserRepositoryer` |
+| Acronyms               | ALL CAPS     | `HTTPClient`, `JWTToken`             |
+| Short-lived variables  | Short        | `r`, `w`, `ctx`, `db`, `mu`          |
+| Constants              | `PascalCase` | `DefaultTimeout`, `maxRetries`       |
 
 ### Anti-Patterns
-- ❌ Hungarian notation: `strUserName`, `pInterface`
-- ❌ Unnecessary prefixes: `GetUser()` when `User()` suffices
+- ❌ Hungarian notation (`strName`, `iCount`)
+- ❌ Unnecessary prefixes (`GetUser()` → `User()` is sufficient)
+- ❌ Abbreviations unless widely known (`cfg` is fine, `usr` is not)
 
 ---
 
-## 3. Package Structure
+## 3. Project & Package Structure
 
-```
+Organize by feature / vertical slice.
+
+```text
 apps/backend/
-├── cmd/                  # Entry points only
-│   └── fleming/main.go
-├── internal/             # Feature modules
-│   ├── auth/             # Auth feature (handler, service, repo, entity)
-│   ├── timeline/         # Timeline feature (handler, service, repo, entity)
-│   └── middleware/       # Shared middleware
-├── router.go             # Central routing
+├── cmd/
+│   └── fleming/
+│       └── main.go                  # Minimal: wire/bootstrap only
+├── internal/
+│   ├── auth/                        # Feature package
+│   │   ├── entity.go                # Domain models (with GORM tags)
+│   │   ├── repository.go            # Interface + impl
+│   │   ├── service.go               # Business logic
+│   │   ├── handler.go               # HTTP adapters
+│   │   └── middleware.go            # Feature-specific middleware
+│   ├── timeline/
+│   │   └── (same structure)
+│   ├── common/                      # Shared utilities (errors, types, helpers)
+│   ├── config/                      # Configuration loading & structs
+│   └── middleware/                  # Cross-cutting middleware (logging, auth, recovery)
+├── pkg/                             # Optional: reusable public packages (rare)
+├── router.go                        # Central Gin router setup
+├── go.mod / go.sum
 └── Dockerfile
 ```
 
-### Rules
-- **Package by Feature**: Group `handler.go`, `service.go`, `repository.go`, and `entity.go` within the feature folder (e.g., `internal/auth/`).
-- **No global `handlers` or `repositories` packages**.
-- **`main` package stays tiny** — real logic in `internal/`.
-- **Use `internal/`** for code that shouldn't be imported externally.
+### Key Rules
+- `internal/` for all non-public code.
+- No god packages like `handlers/`, `repositories/`, `models/`.
+- `main.go` stays tiny — only wiring and server startup.
+- Shared cross-feature code goes in `internal/common/` or dedicated feature packages.
 
 ---
 
-## 4. GORM & Repository Pattern
+## 4. Dependency Injection & Bootstrapping
 
-### Repository Interface
-Define interfaces for data access in `repository.go` within the feature package.
+- Use explicit constructor functions (`NewXxx(deps...)`).
+- Avoid global variables or singletons.
 
+**Example:**
 ```go
-type Repository interface {
-    Create(ctx context.Context, user *User) error
-    FindByID(ctx context.Context, id string) (*User, error)
+func NewTimelineHandler(service TimelineService, middleware ...gin.HandlerFunc) *TimelineHandler {
+    return &TimelineHandler{service: service}
 }
 ```
 
-### GORM Implementation
-Implement the interface using GORM.
+---
+
+## 5. Database Access (GORM + Repository Pattern)
 
 ```go
-type GormRepository struct {
+// repository.go
+type Repository interface {
+    Create(ctx context.Context, e *Event) error
+    FindByUserID(ctx context.Context, userID string) ([]Event, error)
+}
+
+type gormRepository struct {
     db *gorm.DB
 }
 
-func NewGormRepository(db *gorm.DB) *GormRepository {
-    return &GormRepository{db: db}
+func NewRepository(db *gorm.DB) Repository {
+    return &gormRepository{db: db}
 }
 ```
 
 ### Rules
-- **Use GORM** for database interactions.
-- **Decouple Service from GORM**: Services should depend on the `Repository` interface, not `*gorm.DB` directly.
-- **Entities** should have GORM tags in `entity.go`.
+- Services depend on the interface, not `*gorm.DB`.
+- Entities live in `entity.go` with GORM tags.
+- Use scoped sessions (`db.WithContext(ctx)`) to respect cancellation.
 
 ---
 
-## 4. HTTP & API (Gin Framework)
+## 6. HTTP Layer (Gin)
 
-### Handler Pattern
+Handlers are thin adapters — validate input, call service, translate output/errors.
+
 ```go
-// Handlers are thin adapters: HTTP ↔ Domain
-func (h *TimelineHandler) HandleGetTimeline(c *gin.Context) {
-    // Extract from HTTP context
+func (h *TimelineHandler) GetTimeline(c *gin.Context) {
     userID := c.GetString("user_id")
-    
-    // Call domain service
+
     events, err := h.service.GetTimeline(c.Request.Context(), userID)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed"})
+        handleError(c, err) // Centralized error response
         return
     }
-    
-    // Return HTTP response
+
     c.JSON(http.StatusOK, gin.H{"events": events})
 }
 ```
 
 ### Rules
-- **Handlers don't contain business logic**.
-- **Always return appropriate status codes**.
-- **Never leak internal error details to clients**.
+- No business logic in handlers.
+- Use structured response types and centralized error handling.
+- Validate request bodies with `c.ShouldBindJSON(&req)` + `validator.v10` tags.
 
 ---
 
-## 5. Error Handling
+## 7. Error Handling
 
 ```go
-// ✅ Good: Wrap errors with context
-if err != nil {
-    return fmt.Errorf("fetch user %d: %w", id, err)
-}
+// Wrap with context
+return fmt.Errorf("fetch timeline for user %s: %w", userID, err)
 
-// ✅ Good: Check errors with Is/As
-if errors.Is(err, sql.ErrNoRows) {
+// Sentinel errors for public boundaries
+var ErrNotFound = errors.New("not found")
+
+// Checking
+if errors.Is(err, sql.ErrNoRows) || errors.Is(err, ErrNotFound) {
     return ErrNotFound
 }
 ```
 
 ### Rules
-- **Always check errors** — no `_ =` unless justified.
-- **Wrap with context** — use `fmt.Errorf("...: %w", err)`.
-- **Sentinel errors** — only for public API boundaries.
+- Never ignore errors except in rare, documented cases.
+- Always wrap with `%w` for context.
+- Use `errors.Is/As` and `errors.Join` (Go 1.20+).
 
 ---
 
-## 6. Context & Cancellation
+## 8. Context & Cancellation
+
+- `context.Context` should be the first parameter for any potentially blocking call.
+- Propagate through entire call chain.
+- Always respect `ctx.Done()` in long operations.
+- Use `golang.org/x/sync/errgroup` for concurrent work.
+
+---
+
+## 9. Concurrency
+
+| Pattern              | Preferred Use Case                        |
+| -------------------- | ----------------------------------------- |
+| `errgroup.Group`     | Parallel tasks with error propagation     |
+| `sync.Mutex/RWMutex` | Protecting shared state                   |
+| Channels + `select`  | When coordination adds clarity            |
+| `sync.WaitGroup`     | Simple waiting (no error handling needed) |
+
+- Never spawn naked `go func()` — always tie lifetime to context or a manager.
+
+---
+
+## 10. Testing & Benchmarking
+
+- Table-driven tests as default.
+- Prefer stdlib testing; use `testify` only for complex asserts.
+- Use `t.Parallel()` for independent subtests.
+- Use `t.Cleanup()` for resource teardown.
+- Mock repositories with interfaces (no mocking frameworks needed).
+
+### Coverage Targets
+- Domain/services: 80%+
+- Handlers: 60%+
+- Boilerplate: pragmatic
+
+---
+
+## 11. Logging & Observability
+
+- Use `log/slog` exclusively.
 
 ```go
-// ✅ Good: Context as first parameter
-func (s *Service) GetTimeline(ctx context.Context, userID string) ([]Event, error) {
-    return s.repo.FindByUser(ctx, userID)
-}
-
-// ✅ Good: Respect cancellation
-select {
-case <-ctx.Done():
-    return ctx.Err()
-case result := <-ch:
-    return result, nil
-}
-```
-
-### Rules
-- **`context.Context` is first parameter** for blocking operations.
-- **Pass context through the chain**.
-- **Use `errgroup`** for concurrent operations.
-- **Never start naked `go func()`** without cancellation.
-
----
-
-## 7. Concurrency
-
-| Pattern | Use When |
-|---------|----------|
-| Channels + select | Coordination improves clarity |
-| Mutexes | Protecting shared mutable state |
-| `sync.WaitGroup` | Waiting for goroutines |
-| `errgroup` | Concurrent operations with error handling |
-
----
-
-## 8. Testing
-
-### Philosophy
-- **Table-driven tests** are the default.
-- **Use `testing` stdlib** — `testify` only when it adds clarity.
-- **Test files** live next to production code: `foo.go` → `foo_test.go`.
-
-### Coverage Goals
-| Layer | Coverage |
-|-------|----------|
-| Domain logic (`internal/domain`) | 80%+ |
-| Handlers | 60%+ |
-| Boilerplate | Relaxed |
-
-```go
-func TestService_GetTimeline(t *testing.T) {
-    tests := []struct {
-        name    string
-        userID  string
-        want    []Event
-        wantErr bool
-    }{
-        {"happy path", "user1", []Event{{ID: "1"}}, false},
-        {"user not found", "unknown", nil, true},
-    }
-    
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            // ...
-        })
-    }
-}
-```
-
----
-
-## 9. Logging & Observability
-
-```go
-// ✅ Good: Structured logging with slog
-slog.Info("user logged in",
+slog.InfoContext(ctx, "timeline fetched",
     "user_id", userID,
-    "ip", clientIP,
+    "event_count", len(events),
+    "duration_ms", duration.Milliseconds(),
 )
 
-slog.Error("failed to fetch timeline",
+slog.ErrorContext(ctx, "failed to fetch timeline",
     "err", err,
     "user_id", userID,
 )
 ```
 
 ### Rules
-- **Use `log/slog`** — not `fmt.Printf` or `log.Printf`.
-- **JSON in production**, text in development.
-- **Always include**: `err`, correlation IDs, user IDs, request path.
+- Always use structured fields.
+- Include correlation/request ID (via middleware).
+- Production: JSON output; development: human-readable.
 
 ---
 
-## Quick Mantra
+## 12. Performance & Resource Efficiency
 
-> **"Clear is better than clever. Simple is better than fast (until proven otherwise)."**
+- **Optimize only with evidence**: Always profile (`go tool pprof`) and benchmark before changing code.
+- **Minimize allocations**: Reduce garbage collection pressure in hot paths.
+- **Reuse objects**: Use `sync.Pool` for frequent, short-lived objects.
+- **Choose efficient data structures**: Favor slices for cache locality; use maps judiciously.
+
+---
+
+## 13. Documentation & Comments
+
+Code should be self-documenting.
+
+- **Godoc comments required for exported types, functions, and constants.**
+- **Avoid comments explaining what the code does** — use clear names instead.
+- **Allow comments only for**:
+    - Why a non-obvious decision was made.
+    - Complex algorithms.
+    - Workarounds for external bugs (with issue links).
+- **Delete outdated comments immediately.**
+
+---
+
+## Guiding Mantra
+
+> **"Clear is better than clever. Simple is better than fast — until profiling proves otherwise."**
+> Write code that reads like prose, scales through understandability, and evolves gracefully.
