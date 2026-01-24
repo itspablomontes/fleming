@@ -1,4 +1,4 @@
-import { FileText, Network } from "lucide-react";
+import { FileText, Network, Trash2, Edit } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	Sheet,
@@ -19,6 +19,8 @@ interface EventDrawerProps {
 	}>;
 	onClose: () => void;
 	onEventClick: (event: TimelineEvent) => void;
+	onEdit?: (event: TimelineEvent) => void;
+	onArchive?: (event: TimelineEvent) => void;
 }
 
 export function EventDrawer({
@@ -26,6 +28,8 @@ export function EventDrawer({
 	relatedEvents,
 	onClose,
 	onEventClick,
+	onEdit,
+	onArchive,
 }: EventDrawerProps) {
 	const [viewMode, setViewMode] = useState<"cluster" | "details">(() => {
 		if (typeof window !== "undefined") {
@@ -65,6 +69,24 @@ export function EventDrawer({
 						</div>
 
 						<div className="flex items-center gap-4">
+							{event.type !== "tombstone" && (
+								<div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border border-border/50">
+									<button
+										onClick={() => onEdit?.(event)}
+										className="p-1.5 hover:bg-background rounded-md transition-colors text-muted-foreground hover:text-foreground"
+										title="Correct/Edit Entry"
+									>
+										<Edit className="w-4 h-4" />
+									</button>
+									<button
+										onClick={() => onArchive?.(event)}
+										className="p-1.5 hover:bg-background rounded-md transition-colors text-muted-foreground hover:text-destructive"
+										title="Archive Entry"
+									>
+										<Trash2 className="w-4 h-4" />
+									</button>
+								</div>
+							)}
 							<Tabs
 								value={viewMode}
 								onValueChange={(v: string) =>

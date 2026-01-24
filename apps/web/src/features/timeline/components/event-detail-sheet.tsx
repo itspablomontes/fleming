@@ -21,6 +21,8 @@ import {
 	Stethoscope,
 	Syringe,
 	TestTube2,
+	Trash2,
+	Edit,
 	User,
 	UserPlus,
 	X,
@@ -49,6 +51,7 @@ const ICON_MAP: Record<TimelineEventType, LucideIcon> = {
 	vital_signs: HeartPulse,
 	referral: UserPlus,
 	insurance_claim: FileCheck,
+	tombstone: Trash2,
 	other: File,
 };
 
@@ -63,6 +66,8 @@ interface EventDetailSheetProps {
 	relatedEvents?: RelatedEventInfo[];
 	onClose: () => void;
 	onEventClick?: (event: TimelineEvent) => void;
+	onEdit?: (event: TimelineEvent) => void;
+	onArchive?: (event: TimelineEvent) => void;
 }
 
 export function EventDetailSheet({
@@ -70,6 +75,8 @@ export function EventDetailSheet({
 	relatedEvents = [],
 	onClose,
 	onEventClick,
+	onEdit,
+	onArchive,
 }: EventDetailSheetProps) {
 	if (!event) return null;
 
@@ -152,23 +159,75 @@ export function EventDetailSheet({
 						{event.title}
 					</h2>
 				</div>
-				<button
-					type="button"
-					onClick={onClose}
-					style={{
-						background: "none",
-						border: "none",
-						cursor: "pointer",
-						padding: 8,
-						borderRadius: 8,
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "center",
-					}}
-					aria-label="Close"
-				>
-					<X style={{ width: 20, height: 20, color: "var(--muted-foreground)" }} />
-				</button>
+				<div style={{ display: "flex", gap: 4 }}>
+					{event.type !== "tombstone" && (
+						<>
+							<button
+								type="button"
+								onClick={() => onEdit?.(event)}
+								style={{
+									background: "none",
+									border: "none",
+									cursor: "pointer",
+									padding: 8,
+									borderRadius: 8,
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+								}}
+								aria-label="Edit"
+							>
+								<Edit
+									style={{
+										width: 20,
+										height: 20,
+										color: "var(--muted-foreground)",
+									}}
+								/>
+							</button>
+							<button
+								type="button"
+								onClick={() => onArchive?.(event)}
+								style={{
+									background: "none",
+									border: "none",
+									cursor: "pointer",
+									padding: 8,
+									borderRadius: 8,
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+								}}
+								aria-label="Archive"
+							>
+								<Trash2
+									style={{
+										width: 20,
+										height: 20,
+										color: "var(--muted-foreground)",
+									}}
+								/>
+							</button>
+						</>
+					)}
+					<button
+						type="button"
+						onClick={onClose}
+						style={{
+							background: "none",
+							border: "none",
+							cursor: "pointer",
+							padding: 8,
+							borderRadius: 8,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+						}}
+						aria-label="Close"
+					>
+						<X style={{ width: 20, height: 20, color: "var(--muted-foreground)" }} />
+					</button>
+				</div>
 			</div>
 
 			{/* Content */}
