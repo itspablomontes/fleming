@@ -5,8 +5,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
+	"github.com/itspablomontes/fleming/apps/backend/internal/common"
+	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
 )
+
+type MockAuditService struct{}
+
+func (m *MockAuditService) Record(ctx context.Context, actor string, action protocol.Action, resourceType protocol.ResourceType, resourceID string, metadata common.JSONMap) error {
+	return nil
+}
+func (m *MockAuditService) GetLatestEntries(ctx context.Context, actor string, limit int) ([]audit.AuditEntry, error) {
+	return nil, nil
+}
+func (m *MockAuditService) VerifyIntegrity(ctx context.Context) (bool, error) {
+	return true, nil
+}
 
 type MockRepo struct {
 	events []TimelineEvent
@@ -73,7 +88,6 @@ func (m *MockRepo) DeleteEdge(ctx context.Context, id string) error {
 }
 
 func (m *MockRepo) GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error) {
-	// Simplified mock: just return all events for testing
 	return m.events, nil
 }
 
@@ -87,9 +101,14 @@ func (m *MockRepo) GetGraphData(ctx context.Context, patientID string) ([]Timeli
 	return events, m.edges, nil
 }
 
+func (m *MockRepo) Transaction(ctx context.Context, fn func(repo Repository) error) error {
+	return fn(m)
+}
+
 func TestService_AddEvent(t *testing.T) {
 	repo := &MockRepo{}
-	svc := NewService(repo)
+	auditSvc := &MockAuditService{}
+	svc := NewService(repo, auditSvc)
 
 	tests := []struct {
 		name    string
@@ -134,7 +153,8 @@ func TestService_GetTimeline(t *testing.T) {
 			{PatientID: "0x456", Title: "Event 2"},
 		},
 	}
-	svc := NewService(repo)
+	auditSvc := &MockAuditService{}
+	svc := NewService(repo, auditSvc)
 
 	tests := []struct {
 		name      string

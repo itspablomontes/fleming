@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/itspablomontes/fleming/api/internal/common"
+	"github.com/itspablomontes/fleming/apps/backend/internal/common"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
@@ -19,6 +19,7 @@ func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
+// HandleGetTimeline returns the patient's history, excluding superseded events.
 func (h *Handler) HandleGetTimeline(c *gin.Context) {
 	patientID, exists := c.Get("user_address")
 	address, ok := patientID.(string)
@@ -38,6 +39,7 @@ func (h *Handler) HandleGetTimeline(c *gin.Context) {
 	})
 }
 
+// HandleGetEvent returns a single event by ID.
 func (h *Handler) HandleGetEvent(c *gin.Context) {
 	eventID := c.Param("id")
 	if eventID == "" {
@@ -54,6 +56,20 @@ func (h *Handler) HandleGetEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, event)
 }
 
+// AddEventRequest defines the payload for creating a new event.
+type AddEventRequest struct {
+	EventType   string         `json:"eventType" binding:"required"`
+	Title       string         `json:"title" binding:"required"`
+	Description string         `json:"description"`
+	Provider    string         `json:"provider"`
+	Date        string         `json:"date"`
+	Codes       []types.Code   `json:"codes"`
+	BlobRef     string         `json:"blobRef"`
+	IsEncrypted bool           `json:"isEncrypted"`
+	Metadata    common.JSONMap `json:"metadata"`
+}
+
+// HandleAddEvent creates a new timeline event from JSON payload.
 func (h *Handler) HandleAddEvent(c *gin.Context) {
 	patientID, exists := c.Get("user_address")
 	address, ok := patientID.(string)
@@ -62,42 +78,32 @@ func (h *Handler) HandleAddEvent(c *gin.Context) {
 		return
 	}
 
-	eventType := c.PostForm("eventType")
-	title := c.PostForm("title")
-	description := c.PostForm("description")
-	provider := c.PostForm("provider")
-	dateStr := c.PostForm("date")
-	code := c.PostForm("code")
-	codingSystem := c.PostForm("codingSystem")
-
-	if eventType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "eventType is required"})
+	var req AddEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body: " + err.Error()})
 		return
 	}
 
-	if title == "" {
-		title = eventType + " Uploaded"
-	}
-
-	timestamp, err := time.Parse(time.RFC3339, dateStr)
+	timestamp, err := time.Parse(time.RFC3339, req.Date)
 	if err != nil {
 		timestamp = time.Now()
 	}
 
+	if req.Title == "" {
+		req.Title = req.EventType + " Record"
+	}
+
 	event := &TimelineEvent{
 		PatientID:   address,
-		Type:        timeline.EventType(eventType),
-		Title:       title,
-		Description: description,
-		Provider:    provider,
-		Codes: common.JSONCodes{
-			types.Code{
-				System: types.CodingSystem(codingSystem),
-				Value:  code,
-			},
-		},
+		Type:        timeline.EventType(req.EventType),
+		Title:       req.Title,
+		Description: req.Description,
+		Provider:    req.Provider,
+		Codes:       common.JSONCodes(req.Codes),
 		Timestamp:   timestamp,
-		IsEncrypted: true,
+		BlobRef:     req.BlobRef,
+		IsEncrypted: req.IsEncrypted,
+		Metadata:    req.Metadata,
 	}
 
 	if err := h.service.AddEvent(c.Request.Context(), event); err != nil {
@@ -111,6 +117,58 @@ func (h *Handler) HandleAddEvent(c *gin.Context) {
 	})
 }
 
+// HandleCorrectEvent implements the "Edit" logic using the Append-Only flow.
+func (h *Handler) HandleCorrectEvent(c *gin.Context) {
+	patientID, exists := c.Get("user_address")
+	address, ok := patientID.(string)
+	if !exists || !ok || address == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	eventID := c.Param("id")
+	if eventID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "event ID is required"})
+		return
+	}
+
+	var req AddEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	timestamp, err := time.Parse(time.RFC3339, req.Date)
+	if err != nil {
+		timestamp = time.Now()
+	}
+
+	event := &TimelineEvent{
+		ID:          eventID,
+		PatientID:   address,
+		Type:        timeline.EventType(req.EventType),
+		Title:       req.Title,
+		Description: req.Description,
+		Provider:    req.Provider,
+		Codes:       common.JSONCodes(req.Codes),
+		Timestamp:   timestamp,
+		BlobRef:     req.BlobRef,
+		IsEncrypted: req.IsEncrypted,
+		Metadata:    req.Metadata,
+	}
+
+	if err := h.service.UpdateEvent(c.Request.Context(), event); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to correct event: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"event":   event,
+	})
+}
+
+// HandleDeleteEvent removes an event.
 func (h *Handler) HandleDeleteEvent(c *gin.Context) {
 	eventID := c.Param("id")
 	if eventID == "" {
@@ -126,11 +184,13 @@ func (h *Handler) HandleDeleteEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+// LinkRequest defines the payload for linking two events.
 type LinkRequest struct {
 	ToEventID        string `json:"toEventId" binding:"required"`
 	RelationshipType string `json:"relationshipType" binding:"required"`
 }
 
+// HandleLinkEvents creates a semantic edge between two events.
 func (h *Handler) HandleLinkEvents(c *gin.Context) {
 	fromEventID := c.Param("id")
 	if fromEventID == "" {
@@ -161,6 +221,7 @@ func (h *Handler) HandleLinkEvents(c *gin.Context) {
 	})
 }
 
+// HandleUnlinkEvents removes a semantic edge.
 func (h *Handler) HandleUnlinkEvents(c *gin.Context) {
 	edgeID := c.Param("edgeId")
 	if edgeID == "" {
@@ -176,6 +237,7 @@ func (h *Handler) HandleUnlinkEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+// HandleGetRelatedEvents returns events connected to the given ID up to a depth.
 func (h *Handler) HandleGetRelatedEvents(c *gin.Context) {
 	eventID := c.Param("id")
 	if eventID == "" {
@@ -198,6 +260,7 @@ func (h *Handler) HandleGetRelatedEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"events": events})
 }
 
+// HandleGetGraphData returns the raw node/edge list for visualizers.
 func (h *Handler) HandleGetGraphData(c *gin.Context) {
 	patientID, exists := c.Get("user_address")
 	address, ok := patientID.(string)
