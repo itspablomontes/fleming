@@ -1,176 +1,251 @@
----
-trigger: always
-description: Core project philosophy and engineering principles. Always active.
----
-
 # Fleming Project Rules – General Principles
 
-> **Fleming is a real, open-source, production-grade project. Treat every contribution as if it will be deployed to thousands of users tomorrow.**
+> **Fleming is a real, open-source, production-grade project. Treat every contribution as if it ships to thousands of users tomorrow.**
 
-## 1. Project Philosophy
+---
+
+## 0) Non-Negotiables (TL;DR)
+
+- **Correctness > speed**
+- **Security > convenience**
+- **Readable > clever**
+- **Protocol-first architecture**
+- **No silent failures**
+- **No PII in logs**
+- **Tests ship with logic**
+
+> **Mantra:** *Correct. Secure. Readable. Then fast.*
+
+---
+
+## 1) Project Philosophy
 
 ### This is NOT a Toy Project
-- Fleming is designed for real-world use: people will trust it with their health data.
-- Low effort, "just make it work" solutions are **unacceptable**.
-- Every change must be **production-ready**, **secure**, and **maintainable**.
-- We prioritize **correctness** over speed. Bugs in production are more expensive than time spent getting it right.
+Fleming handles health history and medical context. That means:
 
-### Data Sovereignty & Privacy
-- Users own their data. We never store unencrypted PII on our servers.
-- Treat every data flow as a potential security audit target.
-- When in doubt, **don't store it**.
+- “Just make it work” is **not acceptable**
+- Every change must be **production-grade**
+- Bugs are **real harm**, not just “oops”
+
+**We optimize for:**
+1. **Correctness**
+2. **Security**
+3. **Maintainability**
+4. **Performance (only when measured and needed)**
+
+---
+
+### Data Sovereignty & Privacy (Default: Minimize)
+- Users **own** their data.
+- We never store **unencrypted PII** on our servers.
+- Every data flow must survive a security audit mindset.
+
+**Rule of thumb:**  
+> If you don’t need to store it, **don’t store it**.
+
+**Never:**
+- log PII, tokens, secrets, raw documents
+- store plaintext medical content server-side unless explicitly designed and encrypted
+
+---
 
 ### Open Source Ethos
-- Code should be **readable by strangers**. Write as if you're explaining to a junior developer who will maintain this in 5 years.
-- Document "why", not just "what".
-- Prefer boring, battle-tested solutions over clever hacks.
+Code must be understandable by strangers.
 
-### The Fleming Protocol (Mental Model)
+- Write for a developer who joins **2 years later**
+- Document **why**, not only **what**
+- Prefer **boring, battle-tested** solutions over hacks
+
+---
+
+## 2) The Fleming Protocol (Mental Model)
 
 > **The Protocol is the foundation. Applications are built on top of it.**
 
-```
-┌─────────────────────────────────────────────────┐
-│           Applications (apps/)                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────┐  │
-│  │   Backend   │  │     Web     │  │ Future  │  │
-│  │  (Go API)   │  │   (React)   │  │ (Mobile)│  │
-│  └──────┬──────┘  └──────┬──────┘  └────┬────┘  │
-│         │                │              │       │
-│         ▼                ▼              ▼       │
-│  ┌─────────────────────────────────────────────┐│
-│  │         Fleming Protocol (pkg/protocol)     ││
-│  │  • Data Types & Schemas                     ││
-│  │  • Encryption Primitives                    ││
-│  │  • Timeline Event Definitions               ││
-│  │  • Consent Semantics                        ││
-│  └─────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────┘
+```text
+┌──────────────────────────────────────────────────────────────┐
+│                      Applications (apps/)                    │
+│                                                              │
+│   ┌───────────────────┐   ┌───────────────────┐              │
+│   │ Backend (Go API)   │   │ Web (React)        │              │
+│   │ apps/backend/      │   │ apps/web/          │              │
+│   └─────────┬─────────┘   └─────────┬─────────┘              │
+│             │                       │                        │
+│             ▼                       ▼                        │
+│   ┌───────────────────────────────────────────────────────┐  │
+│   │               Fleming Protocol (pkg/protocol/)         │  │
+│   │                                                       │  │
+│   │  • Canonical data models + schemas                     │  │
+│   │  • Encryption primitives + key semantics               │  │
+│   │  • Timeline event definitions                          │  │
+│   │  • Consent + access semantics                          │  │
+│   │  • Versioning + migrations strategy                    │  │
+│   └───────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-| Layer | Location | Responsibility |
-|:---|:---|:---|
-| **Protocol** | `pkg/protocol/` | Source of truth for data shapes, encryption, consent |
-| **Backend** | `apps/backend/` | HTTP API that implements the protocol |
-| **Web** | `apps/web/` | UI that consumes the protocol via API |
+### Layers & Responsibilities
 
-**Implications**:
-1. **Protocol types are canonical**: Go types in `pkg/protocol/` define what data looks like. TypeScript types mirror them.
-2. **Apps depend on protocol, not vice versa**: Never import from `apps/` into `pkg/`.
-3. **Third-party compatibility**: Future apps (mobile, CLI, external tools) implement the same protocol.
-4. **Schema evolution**: Protocol changes require migration plans for all consumers.
+| Layer        | Location        | Responsibility                                      |
+| :----------- | :-------------- | :-------------------------------------------------- |
+| **Protocol** | `pkg/protocol/` | Canonical truth for types, schemas, crypto, consent |
+| **Backend**  | `apps/backend/` | HTTP API that implements the protocol               |
+| **Web**      | `apps/web/`     | UI that consumes the API and enforces UX rules      |
+
+### Protocol Implications (Hard Rules)
+
+#### Protocol types are canonical
+Go types in `pkg/protocol/` define reality.
+TypeScript types mirror, they don’t invent.
+
+#### Apps depend on protocol — never the reverse
+Never import from `apps/` into `pkg/`.
+
+#### Third-party compatibility is intentional
+Future clients (mobile, CLI, external tools) must implement the same protocol.
+
+#### Schema evolution requires a migration story
+If protocol changes: you must consider existing data + existing clients.
 
 ---
 
-## 2. Critical Thinking Requirements
+## 3) Critical Thinking Requirements
 
 ### Before Writing Any Code
-1. **Understand the existing code**: Read it carefully. What exists? Why does it exist?
-2. **Clarify the requirement**: If the task is ambiguous, ask clarifying questions.
-3. **Consider edge cases**: What happens on empty input? Invalid data? Network failure?
-4. **Think about security**: Could this introduce a vulnerability?
-5. **Evaluate alternatives**: Is there a simpler way? A library that already does this?
+1. **Read the existing code**
+   - What already exists?
+   - Why was it implemented this way?
+2. **Clarify the requirement**
+   - If ambiguous: ask.
+   - If risky: call it out.
+3. **Enumerate edge cases**
+   - empty input
+   - invalid data
+   - partial failures
+   - retries / timeouts
+   - concurrency issues
+4. **Threat-model the change**
+   - Could this leak data?
+   - Could this bypass consent?
+   - Could this break encryption guarantees?
+5. **Choose the simplest correct solution**
+   - Avoid adding dependencies unless justified.
 
 ### While Writing Code
-1. **Justify your decisions**: Be ready to explain why you chose one approach over another.
-2. **Review your own work**: Before submitting, read your code as if someone else wrote it.
-3. **Test thoroughly**: Automated tests are mandatory for business logic.
+1. **Make decisions explainable**
+2. **Prefer explicitness over magic**
+3. **Handle failures intentionally**
+4. **Add tests for business logic**
+5. **Avoid breaking changes without a plan**
 
-### Red Flags to Watch For
-- "This works on my machine" → Not acceptable.
-- "I'll add tests later" → Tests come **with** the code.
-- "This is just a quick fix" → Quick fixes become permanent. Fix it properly.
-- "Nobody will do that" → Someone will. Handle it.
+### Red Flags (Stop Signs)
+- “Works on my machine”
+- “I’ll add tests later”
+- “This is just a quick fix”
+- “Nobody will do that”
 
----
-
-## 3. Software Engineering Principles (Non-Negotiable)
-
-### SOLID
-| Principle | Application |
-|-----------|-------------|
-| **S**ingle Responsibility | One function / class / module = one job. |
-| **O**pen/Closed | Extend via abstraction, not modification. Use composition. |
-| **L**iskov Substitution | Subtypes must be substitutable for their base types. |
-| **I**nterface Segregation | Depend on minimal, focused interfaces. |
-| **D**ependency Inversion | Depend on abstractions, not concretions. Inject dependencies. |
-
-### DRY (Don't Repeat Yourself)
-- If you write the same logic twice, extract it.
-- But don't over-abstract. If two things are similar today, they might diverge tomorrow.
-
-### KISS (Keep It Simple, Stupid)
-- The simplest solution that works is usually the best.
-- Complexity is a liability. Every line of code is a potential bug.
-
-### YAGNI (You Aren't Gonna Need It)
-- Don't build features "for the future".
-- Build what's needed *now*, make it extensible if cheap.
-
-### Clean Code
-- **Meaningful names**: `startTime` not `st`, `userRepository` not `ur`.
-- **Small functions**: < 30 lines. One level of abstraction per function.
-- **No comments for bad code**: Rewrite to be self-explanatory.
-- **No dead code**: Delete it. Git remembers.
-
-### Design Patterns
-- Use patterns when they **simplify** the problem, not to show off.
-- Common useful patterns: Repository, Service, Factory, Strategy, Observer.
-- Avoid over-engineering: Not everything needs a pattern.
+If you catch yourself thinking these: **pause and redesign.**
 
 ---
 
-## 4. Agentic Development Best Practices
+## 4) Engineering Principles (Non-Negotiable)
 
-> These rules optimize AI-assisted development for safety and quality.
+### SOLID (Practical Interpretation)
+| Principle | Fleming interpretation                                  |
+| :-------- | :------------------------------------------------------ |
+| **S**     | Each module has one job and one reason to change        |
+| **O**     | Add features by extension, not rewriting stable code    |
+| **L**     | Swappable implementations must behave consistently      |
+| **I**     | Small, focused interfaces beat “god interfaces”         |
+| **D**     | Depend on abstractions; inject concrete implementations |
+
+### DRY (But Don’t Over-Abstract)
+- **Duplicate logic** → extract
+- **Similar logic** → only extract if it stays the same for a reason
+
+### KISS
+- Simple is safer.
+- Complexity is a permanent cost.
+
+### YAGNI
+- Don’t build “future features”.
+- Build what is required **now**, with clean extension points only if cheap.
+
+### Clean Code Standards
+- **Names must be meaningful** (`userRepository`, not `ur`)
+- **Functions should be small and focused**
+- **Prefer refactoring over comment excuses**
+- **Delete dead code** (git is the archive)
+
+### Design Patterns (Use Only When They Reduce Complexity)
+Allowed patterns when justified:
+- Repository
+- Service
+- Factory
+- Strategy
+- Observer
+
+Avoid “pattern cosplay”.
+
+---
+
+## 5) Agentic Development Rules (AI-Assisted Safety)
+
+> These rules exist to prevent “fast wrong” changes.
 
 ### Plan Before Executing
-1. **Create a plan**: Before touching code, outline what you will change and why.
-2. **Get approval**: Complex changes require user review before implementation.
-3. **Break down tasks**: Large changes should be split into smaller, reviewable chunks.
+Write a short plan before coding:
+- what will change
+- why it changes
+- risks
+- tests
+
+Complex changes require explicit review before implementation.
 
 ### Verify Before Completing
-1. **Run tests**: Every change must pass existing tests.
-2. **Check for regressions**: Did something break that was working before?
-3. **Verify in browser/runtime**: Don't just trust the compiler.
+1. **Run tests**
+2. **Check for regressions**
+3. **Validate behavior in runtime** (browser/API)
 
-### Avoid Common AI Pitfalls
-- **Don't hallucinate**: If you're unsure about an API or fact, verify it.
-- **Don't over-generate**: Minimal changes are safer. Don't refactor the world.
-- **Don't ignore errors**: Every error message is a clue. Investigate.
-- **Don't skip context**: Read surrounding code, imports, and tests before editing.
+### Avoid Common AI Failure Modes
+- **Don’t guess APIs** — verify them
+- **Don’t refactor unrelated code**
+- **Don’t ignore error messages**
+- **Always read surrounding context before editing**
 
-### Communication
-- **Be explicit**: State your assumptions clearly.
-- **Show your reasoning**: Explain *why* you made a choice.
-- **Ask when stuck**: It's better to ask than to guess wrong.
-
----
-
-## 5. Security & Quality Mindset
-
-### Every Change Could Be the One
-- The one that introduces a vulnerability.
-- The one that leaks user data.
-- The one that crashes production.
-
-### Security First
-- Never trust user input. Validate everything.
-- Never log secrets, tokens, or PII.
-- Use parameterized queries. Never string-concat SQL.
-- Secrets come from environment variables, never hardcoded.
-
-### Quality Metrics
-- Code coverage: 80%+ on business logic.
-- Zero lint errors at commit time.
-- Zero `any` in TypeScript. Zero `//nolint:` without justification in Go.
+### Communication Requirements
+- **State assumptions explicitly**
+- **Explain tradeoffs briefly**
+- **Ask when blocked instead of guessing**
 
 ---
 
-## 6. Collaboration & Communication
+## 6) Security & Quality Mindset
 
-### Commit Messages
-Follow Conventional Commits:
+### Every Change Could Be The One
+- the one that leaks data
+- the one that breaks consent
+- the one that crashes production
+
+**Act accordingly.**
+
+### Security Rules (Hard Requirements)
+- **Validate and sanitize all input**
+- **Never log secrets / tokens / PII**
+- **Use parameterized queries** (no SQL string concat)
+- **Secrets must come from env/secret manager** — never hardcode
+
+### Quality Gates
+- **80%+ coverage on business logic**
+- **Zero lint errors** at commit time
+- **TypeScript:** no `any`
+- **Go:** no `//nolint` without justification
+
+---
+
+## 7) Collaboration & Communication
+
+### Commit Messages (Conventional Commits)
 ```
 feat: add user profile endpoint
 fix: handle null avatar in timeline card
@@ -180,21 +255,20 @@ test: add integration tests for timeline
 chore: upgrade dependencies
 ```
 
-### Pull Request Guidelines
-- Title: Clear, concise description of the change.
-- Description: What changed? Why? Any risks?
-- Self-review: Show you reviewed your own code.
-- Link issues: Reference related GitHub issues.
+### Pull Requests
+- Clear title
+- Explain **what** + **why**
+- Mention risks and migration notes (if any)
+- Self-review before requesting review
+- Link related issues
 
-### Code Review Ethos
-- Be respectful. Critique code, not people.
-- Explain your reasoning. "Don't do this" is unhelpful.
-- Approve with trust, request changes with clarity.
+### Review Ethos
+- Critique code, not people
+- Explain reasoning
+- Be strict on security and correctness
+- Be kind in communication
 
 ---
 
 ## Quick Mantra
-
-> **"Correct, Secure, Readable, Then Fast."**
-
-Build it right. Build it safe. Build it clear. Optimize only when proven necessary.
+> **Correct, Secure, Readable, Then Fast.**
