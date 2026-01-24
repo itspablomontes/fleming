@@ -19,6 +19,8 @@ type Repository interface {
 	GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error)
 
 	GetGraphData(ctx context.Context, patientID string) ([]TimelineEvent, []EventEdge, error)
+
+	Transaction(ctx context.Context, fn func(repo Repository) error) error
 }
 
 type GormRepository struct {
@@ -31,59 +33,63 @@ func NewRepository(db *gorm.DB) Repository {
 
 func (r *GormRepository) GetByPatientID(ctx context.Context, patientID string) ([]TimelineEvent, error) {
 	var events []TimelineEvent
-	if err := r.db.WithContext(ctx).
+	err := r.db.WithContext(ctx).
 		Where("patient_id = ?", patientID).
+		Preload("OutgoingEdges").
+		Preload("IncomingEdges").
 		Order("timestamp DESC").
-		Find(&events).Error; err != nil {
-		return nil, fmt.Errorf("failed to query timeline events: %w", err)
+		Find(&events).Error
+	if err != nil {
+		return nil, fmt.Errorf("get timeline events by patient %s: %w", patientID, err)
 	}
 	return events, nil
 }
 
 func (r *GormRepository) GetByID(ctx context.Context, id string) (*TimelineEvent, error) {
 	var event TimelineEvent
-	if err := r.db.WithContext(ctx).
+	err := r.db.WithContext(ctx).
 		Preload("Files").
-		First(&event, "id = ?", id).Error; err != nil {
-		return nil, fmt.Errorf("failed to get event: %w", err)
+		First(&event, "id = ?", id).Error
+	if err != nil {
+		return nil, fmt.Errorf("get timeline event %s: %w", id, err)
 	}
 	return &event, nil
 }
 
 func (r *GormRepository) Create(ctx context.Context, event *TimelineEvent) error {
 	if err := r.db.WithContext(ctx).Create(event).Error; err != nil {
-		return fmt.Errorf("failed to insert timeline event: %w", err)
+		return fmt.Errorf("create timeline event: %w", err)
 	}
 	return nil
 }
 
 func (r *GormRepository) Update(ctx context.Context, event *TimelineEvent) error {
 	if err := r.db.WithContext(ctx).Save(event).Error; err != nil {
-		return fmt.Errorf("failed to update timeline event: %w", err)
+		return fmt.Errorf("update timeline event %s: %w", event.ID, err)
 	}
 	return nil
 }
 
 func (r *GormRepository) Delete(ctx context.Context, id string) error {
 	if err := r.db.WithContext(ctx).Delete(&TimelineEvent{}, "id = ?", id).Error; err != nil {
-		return fmt.Errorf("failed to delete timeline event: %w", err)
+		return fmt.Errorf("delete timeline event %s: %w", id, err)
 	}
 	return nil
 }
 
 func (r *GormRepository) CreateEdge(ctx context.Context, edge *EventEdge) error {
 	if edge.FromEventID == edge.ToEventID {
-		return fmt.Errorf("cannot create edge: self-loops are not allowed")
+		return fmt.Errorf("create edge: self-loops not allowed")
 	}
 	if err := r.db.WithContext(ctx).Create(edge).Error; err != nil {
-		return fmt.Errorf("failed to create edge: %w", err)
+		return fmt.Errorf("create event edge: %w", err)
 	}
 	return nil
 }
 
 func (r *GormRepository) DeleteEdge(ctx context.Context, id string) error {
 	if err := r.db.WithContext(ctx).Delete(&EventEdge{}, "id = ?", id).Error; err != nil {
-		return fmt.Errorf("failed to delete edge: %w", err)
+		return fmt.Errorf("delete event edge %s: %w", id, err)
 	}
 	return nil
 }
@@ -121,7 +127,7 @@ func (r *GormRepository) GetRelatedEvents(ctx context.Context, eventID string, m
 	`
 
 	if err := r.db.WithContext(ctx).Raw(query, eventID, maxDepth).Scan(&events).Error; err != nil {
-		return nil, fmt.Errorf("failed to get related events: %w", err)
+		return nil, fmt.Errorf("query related events for %s: %w", eventID, err)
 	}
 
 	return events, nil
@@ -129,11 +135,12 @@ func (r *GormRepository) GetRelatedEvents(ctx context.Context, eventID string, m
 
 func (r *GormRepository) GetGraphData(ctx context.Context, patientID string) ([]TimelineEvent, []EventEdge, error) {
 	var events []TimelineEvent
-	if err := r.db.WithContext(ctx).
+	err := r.db.WithContext(ctx).
 		Where("patient_id = ?", patientID).
 		Order("timestamp DESC").
-		Find(&events).Error; err != nil {
-		return nil, nil, fmt.Errorf("failed to query events for graph: %w", err)
+		Find(&events).Error
+	if err != nil {
+		return nil, nil, fmt.Errorf("query events for graph: %w", err)
 	}
 
 	if len(events) == 0 {
@@ -146,11 +153,18 @@ func (r *GormRepository) GetGraphData(ctx context.Context, patientID string) ([]
 	}
 
 	var edges []EventEdge
-	if err := r.db.WithContext(ctx).
+	err = r.db.WithContext(ctx).
 		Where("from_event_id IN ? AND to_event_id IN ?", eventIDs, eventIDs).
-		Find(&edges).Error; err != nil {
-		return nil, nil, fmt.Errorf("failed to query edges for graph: %w", err)
+		Find(&edges).Error
+	if err != nil {
+		return nil, nil, fmt.Errorf("query edges for graph: %w", err)
 	}
 
 	return events, edges, nil
+}
+
+func (r *GormRepository) Transaction(ctx context.Context, fn func(repo Repository) error) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(&GormRepository{db: tx})
+	})
 }

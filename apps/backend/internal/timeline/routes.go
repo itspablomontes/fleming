@@ -10,6 +10,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 
 		timeline.GET("/events/:id", h.HandleGetEvent)
 		timeline.POST("/events", h.HandleAddEvent)
+		timeline.POST("/events/:id/correction", h.HandleCorrectEvent)
 		timeline.DELETE("/events/:id", h.HandleDeleteEvent)
 
 		timeline.POST("/events/:id/link", h.HandleLinkEvents)

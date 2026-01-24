@@ -25,6 +25,7 @@ const (
 	EventVitalSigns     EventType = "vital_signs"
 	EventReferral       EventType = "referral"
 	EventInsuranceClaim EventType = "insurance_claim"
+	EventTombstone      EventType = "tombstone"
 	EventOther          EventType = "other"
 )
 
@@ -34,7 +35,7 @@ func ValidEventTypes() []EventType {
 		EventProcedure, EventLabResult, EventImaging,
 		EventNote, EventVaccination, EventAllergy,
 		EventVisitNote, EventVitalSigns, EventReferral,
-		EventInsuranceClaim, EventOther,
+		EventInsuranceClaim, EventTombstone, EventOther,
 	}
 }
 

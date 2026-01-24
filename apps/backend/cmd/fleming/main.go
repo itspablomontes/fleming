@@ -12,9 +12,11 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/itspablomontes/fleming/api"
-	"github.com/itspablomontes/fleming/api/internal/auth"
-	"github.com/itspablomontes/fleming/api/internal/timeline"
+	api "github.com/itspablomontes/fleming/apps/backend"
+	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
+	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
+	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
+	"github.com/itspablomontes/fleming/apps/backend/internal/timeline"
 )
 
 func main() {
@@ -56,6 +58,8 @@ func main() {
 		&timeline.TimelineEvent{},
 		&timeline.EventEdge{},
 		&timeline.EventFile{},
+		&audit.AuditEntry{},
+		&consent.ConsentGrant{},
 	); err != nil {
 		slog.Error("failed to auto-migrate schema", "error", err)
 		os.Exit(1)

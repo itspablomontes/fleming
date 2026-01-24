@@ -3,7 +3,7 @@ package timeline
 import (
 	"time"
 
-	"github.com/itspablomontes/fleming/api/internal/common"
+	"github.com/itspablomontes/fleming/apps/backend/internal/common"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
 )
 

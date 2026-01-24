@@ -6,7 +6,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/itspablomontes/fleming/api/internal/auth"
+	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
+	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
 )
 
 func AuthMiddleware(authService *auth.Service) gin.HandlerFunc {
@@ -40,6 +41,54 @@ func AuthMiddleware(authService *auth.Service) gin.HandlerFunc {
 
 		slog.Debug("auth: success", "address", address, "source", source)
 		c.Set("user_address", address)
+		c.Next()
+	}
+}
+
+// ConsentMiddleware enforces patient-controlled access to medical data.
+// It requires AuthMiddleware to have run first.
+func ConsentMiddleware(consentService consent.Service) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userAddress, _ := c.Get("user_address")
+		actor, ok := userAddress.(string)
+		if !ok || actor == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
+
+		patientID := c.Query("patientId")
+		if patientID == "" {
+			patientID = actor
+		}
+
+		if actor == patientID {
+			c.Set("target_patient", patientID)
+			c.Next()
+			return
+		}
+
+		permission := "read"
+		if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodDelete {
+			permission = "write"
+		}
+
+		allowed, err := consentService.CheckPermission(c.Request.Context(), patientID, actor, permission)
+		if err != nil {
+			slog.Error("consent check error", "actor", actor, "patient", patientID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify access permissions"})
+			c.Abort()
+			return
+		}
+
+		if !allowed {
+			slog.Warn("access denied: no valid consent", "actor", actor, "patient", patientID)
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied: you do not have permission to access this patient's data"})
+			c.Abort()
+			return
+		}
+
+		c.Set("target_patient", patientID)
 		c.Next()
 	}
 }

@@ -7,9 +7,11 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/itspablomontes/fleming/api/internal/auth"
-	"github.com/itspablomontes/fleming/api/internal/middleware"
-	"github.com/itspablomontes/fleming/api/internal/timeline"
+	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
+	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
+	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
+	"github.com/itspablomontes/fleming/apps/backend/internal/middleware"
+	"github.com/itspablomontes/fleming/apps/backend/internal/timeline"
 	"gorm.io/gorm"
 )
 
@@ -30,14 +32,20 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	}
 
 	authRepo := auth.NewGormRepository(db)
-	authService := auth.NewService(authRepo, jwtSecret)
-
+	auditRepo := audit.NewRepository(db)
+	consentRepo := consent.NewRepository(db)
 	timelineRepo := timeline.NewRepository(db)
-	timelineService := timeline.NewService(timelineRepo)
+
+	auditService := audit.NewService(auditRepo)
+	consentService := consent.NewService(consentRepo)
+	authService := auth.NewService(authRepo, jwtSecret, auditService)
+	timelineService := timeline.NewService(timelineRepo, auditService)
 
 	authService.StartCleanup(context.Background())
 
 	authHandler := auth.NewHandler(authService)
+	auditHandler := audit.NewHandler(auditService)
+	consentHandler := consent.NewHandler(consentService)
 	timelineHandler := timeline.NewHandler(timelineService)
 
 	r.GET("/health", func(c *gin.Context) {
@@ -53,7 +61,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 
 	apiGroup := r.Group("/api")
 	apiGroup.Use(middleware.AuthMiddleware(authService))
-	timelineHandler.RegisterRoutes(apiGroup)
+
+	auditHandler.RegisterRoutes(apiGroup)
+	consentHandler.RegisterRoutes(apiGroup)
+
+	// Timeline routes are protected by both Auth and Consent middleware
+	timelineGroup := apiGroup.Group("")
+	timelineGroup.Use(middleware.ConsentMiddleware(consentService))
+	timelineHandler.RegisterRoutes(timelineGroup)
 
 	return r
 }

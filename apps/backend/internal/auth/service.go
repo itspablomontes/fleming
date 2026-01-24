@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
+	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/identity"
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
@@ -27,14 +29,16 @@ type ChallengeRequest struct {
 }
 
 type Service struct {
-	repo      Repository
-	jwtSecret []byte
+	repo         Repository
+	jwtSecret    []byte
+	auditService audit.Service
 }
 
-func NewService(repo Repository, jwtSecret string) *Service {
+func NewService(repo Repository, jwtSecret string, auditService audit.Service) *Service {
 	return &Service{
-		repo:      repo,
-		jwtSecret: []byte(jwtSecret),
+		repo:         repo,
+		jwtSecret:    []byte(jwtSecret),
+		auditService: auditService,
 	}
 }
 
@@ -104,7 +108,15 @@ func (s *Service) ValidateChallenge(ctx context.Context, address, signature stri
 	s.deleteChallenge(ctx, address)
 
 	slog.Info("auth successful", "address", address)
-	return s.issueJWT(address)
+	token, err := s.issueJWT(address)
+	if err != nil {
+		return "", err
+	}
+
+	// Record successful login in audit trail
+	_ = s.auditService.Record(ctx, address, protocol.ActionLogin, protocol.ResourceSession, address, nil)
+
+	return token, nil
 }
 
 func (s *Service) deleteChallenge(ctx context.Context, address string) {

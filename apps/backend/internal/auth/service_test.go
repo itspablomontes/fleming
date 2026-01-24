@@ -4,7 +4,23 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	internalAudit "github.com/itspablomontes/fleming/apps/backend/internal/audit"
+	"github.com/itspablomontes/fleming/apps/backend/internal/common"
+	"github.com/itspablomontes/fleming/pkg/protocol/audit"
 )
+
+type MockAuditService struct{}
+
+func (m *MockAuditService) Record(ctx context.Context, actor string, action audit.Action, resourceType audit.ResourceType, resourceID string, metadata common.JSONMap) error {
+	return nil
+}
+func (m *MockAuditService) GetLatestEntries(ctx context.Context, actor string, limit int) ([]internalAudit.AuditEntry, error) {
+	return nil, nil
+}
+func (m *MockAuditService) VerifyIntegrity(ctx context.Context) (bool, error) {
+	return true, nil
+}
 
 type MockRepo struct {
 	challenges map[string]*Challenge
@@ -43,7 +59,8 @@ func (m *MockRepo) DeleteExpiredChallenges(ctx context.Context) (int64, error) {
 
 func TestService_GenerateChallenge(t *testing.T) {
 	repo := &MockRepo{}
-	svc := NewService(repo, "secret")
+	auditSvc := &MockAuditService{}
+	svc := NewService(repo, "secret", auditSvc)
 
 	tests := []struct {
 		name    string
