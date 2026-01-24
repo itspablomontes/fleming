@@ -3,6 +3,7 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,15 @@ import (
 
 func AuthMiddleware(authService *auth.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		env := os.Getenv("ENV")
+		overrideAddress := os.Getenv("DEV_OVERRIDE_WALLET_ADDRESS")
+		if env == "dev" && overrideAddress != "" {
+			slog.Debug("auth: using dev override", "address", overrideAddress)
+			c.Set("user_address", overrideAddress)
+			c.Next()
+			return
+		}
+
 		authHeader := c.GetHeader("Authorization")
 		source := "header"
 

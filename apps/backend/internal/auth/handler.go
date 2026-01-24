@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -83,7 +84,24 @@ func (h *Handler) HandleLogout(c *gin.Context) {
 }
 
 func (h *Handler) HandleMe(c *gin.Context) {
-	address, exists := c.Get("user_address")
+	env := os.Getenv("ENV")
+	overrideAddress := os.Getenv("DEV_OVERRIDE_WALLET_ADDRESS")
+
+	var address string
+	var exists bool
+
+	if env == "dev" && overrideAddress != "" {
+		address = overrideAddress
+		exists = true
+		slog.Debug("auth: HandleMe using dev override", "address", address)
+	} else {
+		val, ok := c.Get("user_address")
+		if ok {
+			address = val.(string)
+			exists = true
+		}
+	}
+
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
