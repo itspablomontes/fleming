@@ -1,3 +1,9 @@
+---
+trigger: glob
+description: "*.ts", "*.tsx"
+globs: "*.ts", "*.tsx"
+---
+
 # OWASP Frontend Security Rules
 
 > **Trigger**: Use these rules when building, reviewing, or modifying frontend code in `apps/web/`.
