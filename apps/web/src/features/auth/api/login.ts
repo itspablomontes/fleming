@@ -8,7 +8,7 @@ export const login = async (
 	address: string,
 	signature: string,
 ): Promise<boolean> => {
-	const res = await apiClient("/auth/login", {
+	const res = await apiClient("/api/auth/login", {
 		body: { address, signature },
 	});
 	return res.success;
