@@ -157,24 +157,16 @@ export const Route = createFileRoute('/timeline')({
 
 ```
 src/
-├── routes/           # File-based routing
-├── features/         # Domain features (auth, timeline, etc.)
-│   └── {feature}/
-│       ├── components/
-│       ├── hooks/
-│       ├── pages/
-│       ├── api/
-│       └── types/
-├── components/
-│   ├── ui/           # Primitives (Button, Input)
-│   └── common/       # Generic (Logo, ErrorBoundary)
-├── lib/              # Utilities, API clients
-├── hooks/            # Global hooks
-└── types/            # Global types (named files)
+├── routes/       # Typesafe routing config
+├── features/     # Feature vertical slices (auth, timeline)
+├── components/   # ui/ (primitives), common/ (shared)
+├── lib/          # webcrypto, api clients, utils
+└── hooks/        # Global hooks
 ```
 
----
-
-## Quick Mantra
-
-> **"Typesafe Routing. Biome Formatting. Composition over Configuration."**
+## 5. PR Checklist
+- [ ] No `any`.
+- [ ] Dark mode variants included.
+- [ ] `pnpm audit` passes.
+- [ ] No `console.log` of sensitive data.
+- [ ] Zod validation on inputs.
