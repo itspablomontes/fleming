@@ -37,18 +37,24 @@ export function TimelineMinimap({
 		const track = trackRef.current;
 		if (!track) return;
 
-		const startX = e.clientX;
-		const startPct = viewportLeftPct;
-		const trackWidth = track.clientWidth;
+		const maxLeftPct = Math.max(0, 100 - viewportWidthPct);
+		const halfViewportPct = viewportWidthPct / 2;
+
+		const updatePosition = (clientX: number) => {
+			const rect = track.getBoundingClientRect();
+			const clickX = clientX - rect.left;
+			const clickPct = (clickX / rect.width) * 100;
+			const centeredPct = Math.max(
+				0,
+				Math.min(maxLeftPct, clickPct - halfViewportPct),
+			);
+			onScroll(centeredPct / 100);
+		};
+
+		updatePosition(e.clientX);
 
 		const handleMouseMove = (moveEvent: MouseEvent) => {
-			const deltaX = moveEvent.clientX - startX;
-			const deltaPct = (deltaX / trackWidth) * 100;
-			const newPct = Math.max(
-				0,
-				Math.min(100 - viewportWidthPct, startPct + deltaPct),
-			);
-			onScroll(newPct / 100);
+			updatePosition(moveEvent.clientX);
 		};
 
 		const handleMouseUp = () => {
@@ -65,13 +71,14 @@ export function TimelineMinimap({
 		if (!trackRef.current) return;
 		const rect = trackRef.current.getBoundingClientRect();
 		const clickX = e.clientX - rect.left;
-		const clickPct = clickX / rect.width;
-		// Center the viewport on click
+		const clickPct = (clickX / rect.width) * 100;
+		const maxLeftPct = Math.max(0, 100 - viewportWidthPct);
+		const halfViewportPct = viewportWidthPct / 2;
 		const centeredPct = Math.max(
 			0,
-			Math.min(1, clickPct - viewportWidth / totalWidth / 2),
+			Math.min(maxLeftPct, clickPct - halfViewportPct),
 		);
-		onScroll(centeredPct);
+		onScroll(centeredPct / 100);
 	};
 
 	return (

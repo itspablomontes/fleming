@@ -21,32 +21,53 @@ import {
 import { useVault } from "@/features/auth/contexts/vault-context";
 import { encryptFile, wrapKey } from "@/lib/crypto/encryption";
 import { generateDEK } from "@/lib/crypto/keys";
-import { addEvent, correctEvent } from "../api";
+import { useEditStore } from "@/features/timeline/stores/edit-store";
+import { useUploadStore } from "@/features/timeline/stores/upload-store";
 import {
-	EVENT_TYPE_LABELS,
-	TimelineEventType as EventTypes,
-	type TimelineEvent,
-} from "../types";
+	addEvent,
+	completeMultipartUpload,
+	correctEvent,
+	startMultipartUpload,
+	uploadMultipartPart,
+} from "../api";
+import { EVENT_TYPE_LABELS, TimelineEventType as EventTypes } from "../types";
 
 interface UploadModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onSuccess?: () => void;
-	editEvent?: TimelineEvent | null;
-	onReset?: () => void;
+}
+
+const MULTIPART_THRESHOLD_BYTES = 10 * 1024 * 1024;
+const MULTIPART_CHUNK_BYTES = 5 * 1024 * 1024;
+const IV_LENGTH = 12;
+
+function toHex(buffer: ArrayBuffer): string {
+	return Array.from(new Uint8Array(buffer))
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
 }
 
 export function UploadModal({
 	isOpen,
 	onClose,
 	onSuccess,
-	editEvent,
-	onReset,
 }: UploadModalProps) {
 	const { isUnlocked, masterKey } = useVault();
+	const editEvent = useEditStore((state) => state.editEvent);
+	const cancelEdit = useEditStore((state) => state.cancelEdit);
+	const file = useUploadStore((state) => state.file);
+	const isUploading = useUploadStore((state) => state.isUploading);
+	const uploadStatus = useUploadStore((state) => state.uploadStatus);
+	const error = useUploadStore((state) => state.error);
+	const setFile = useUploadStore((state) => state.setFile);
+	const startUpload = useUploadStore((state) => state.startUpload);
+	const finishUpload = useUploadStore((state) => state.finishUpload);
+	const setStatus = useUploadStore((state) => state.setStatus);
+	const setError = useUploadStore((state) => state.setError);
+	const reset = useUploadStore((state) => state.reset);
 	const [showUnlockDialog, setShowUnlockDialog] = useState(false);
 
-	const [file, setFile] = useState<File | null>(null);
 	const [eventType, setEventType] = useState<EventTypes>(EventTypes.VISIT_NOTE);
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
@@ -55,10 +76,6 @@ export function UploadModal({
 	const [metadata, setMetadata] = useState<{ key: string; value: string }[]>(
 		[],
 	);
-	const [isUploading, setIsUploading] = useState(false);
-	const [uploadStatus, setUploadStatus] = useState<string>("");
-	const [error, setError] = useState<string | null>(null);
-
 	useEffect(() => {
 		if (editEvent) {
 			setEventType(editEvent.type);
@@ -86,7 +103,7 @@ export function UploadModal({
 			setMetadata([]);
 		}
 		setError(null);
-	}, [editEvent]);
+	}, [editEvent, setError]);
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files?.[0]) {
@@ -123,8 +140,8 @@ export function UploadModal({
 			return;
 		}
 
-		setIsUploading(true);
-		setUploadStatus("Starting...");
+		startUpload();
+		setStatus("Starting...");
 
 		try {
 			// Convert metadata array back to object
@@ -138,18 +155,116 @@ export function UploadModal({
 			let payloadFile: File | Blob | undefined = file || undefined;
 			let isEncrypted = false;
 			let wrappedKeyHex: string | undefined;
+			const shouldUseMultipart = Boolean(
+				file && file.size > MULTIPART_THRESHOLD_BYTES,
+			);
 
 			// 2. Encryption Step (if new file present)
 			if (file) {
-				setUploadStatus("Generating keys...");
+				setStatus("Generating keys...");
 				const dek = await generateDEK(); // 256-bit AES-GCM
+				isEncrypted = true;
 
-				setUploadStatus("Encrypting file...");
+				const wrappedKey = await wrapKey(dek, masterKey);
+				wrappedKeyHex = toHex(wrappedKey);
+
+				if (shouldUseMultipart) {
+					setStatus("Preparing multipart upload...");
+					const eventResponse = editEvent
+						? await correctEvent({
+								id: editEvent.id,
+								eventType,
+								title,
+								description,
+								provider,
+								date: new Date(date).toISOString(),
+								metadata: metadataObj,
+								isEncrypted,
+						  })
+						: await addEvent({
+								eventType,
+								title,
+								description,
+								provider,
+								date: new Date(date).toISOString(),
+								metadata: metadataObj,
+								isEncrypted,
+						  });
+
+					const createdEvent = eventResponse.event;
+					if (!createdEvent) {
+						throw new Error("Failed to create event before multipart upload.");
+					}
+
+					const { uploadId, objectName } = await startMultipartUpload({
+						eventId: createdEvent.id,
+						fileName: file.name,
+						mimeType: file.type || "application/octet-stream",
+					});
+
+					const parts: Array<{ partNumber: number; etag: string }> = [];
+					const totalParts = Math.ceil(file.size / MULTIPART_CHUNK_BYTES);
+					let partNumber = 1;
+
+					for (
+						let offset = 0;
+						offset < file.size;
+						offset += MULTIPART_CHUNK_BYTES
+					) {
+						const chunk = file.slice(offset, offset + MULTIPART_CHUNK_BYTES);
+						const chunkBuffer = await chunk.arrayBuffer();
+						setStatus(
+							`Encrypting chunk ${partNumber} of ${totalParts}...`,
+						);
+						const { ciphertext, iv } = await encryptFile(chunkBuffer, dek);
+						const encryptedChunk = new Blob(
+							[iv.buffer as ArrayBuffer, ciphertext],
+							{ type: "application/octet-stream" },
+						);
+						setStatus(
+							`Uploading chunk ${partNumber} of ${totalParts}...`,
+						);
+						const partResponse = await uploadMultipartPart({
+							eventId: createdEvent.id,
+							uploadId,
+							objectName,
+							partNumber,
+							part: encryptedChunk,
+						});
+						parts.push({ partNumber, etag: partResponse.etag });
+						partNumber += 1;
+					}
+
+					setStatus("Finalizing multipart upload...");
+					await completeMultipartUpload({
+						eventId: createdEvent.id,
+						uploadId,
+						objectName,
+						fileName: file.name,
+						mimeType: file.type || "application/octet-stream",
+						fileSize: file.size,
+						wrappedKey: wrappedKeyHex,
+						chunkSize: MULTIPART_CHUNK_BYTES,
+						totalSize: file.size,
+						ivLength: IV_LENGTH,
+						parts,
+					});
+
+					onSuccess?.();
+					onClose();
+					cancelEdit();
+					reset();
+					setTitle("");
+					setDescription("");
+					setProvider("");
+					setStatus("");
+					setMetadata([]);
+					return;
+				}
+
+				setStatus("Encrypting file...");
 				const fileData = await file.arrayBuffer();
 				const { ciphertext, iv } = await encryptFile(fileData, dek);
-
-				setUploadStatus("Securing keys...");
-				const wrappedKey = await wrapKey(dek, masterKey);
 
 				// Combine IV + Ciphertext for storage
 				// Format: [IV (12 bytes)] [Ciphertext (N bytes)]
@@ -157,15 +272,11 @@ export function UploadModal({
 					type: "application/octet-stream",
 				});
 				payloadFile = encryptedBlob;
-				isEncrypted = true;
-
 				// Convert wrapped key to hex for transport
-				wrappedKeyHex = Array.from(new Uint8Array(wrappedKey))
-					.map((b) => b.toString(16).padStart(2, "0"))
-					.join("");
+				wrappedKeyHex = toHex(wrappedKey);
 			}
 
-			setUploadStatus("Uploading to vault...");
+			setStatus("Uploading to vault...");
 
 			if (editEvent) {
 				await correctEvent({
@@ -195,14 +306,14 @@ export function UploadModal({
 			}
 			onSuccess?.();
 			onClose();
-			onReset?.();
+			cancelEdit();
 
 			// Reset form
-			setFile(null);
+			reset();
 			setTitle("");
 			setDescription("");
 			setProvider("");
-			setUploadStatus("");
+			setStatus("");
 			setMetadata([]);
 		} catch (err) {
 			console.error("Operation failed:", err);
@@ -210,7 +321,7 @@ export function UploadModal({
 				`Failed to ${editEvent ? "correct" : "upload"} document. Please try again.`,
 			);
 		} finally {
-			setIsUploading(false);
+			finishUpload();
 		}
 	};
 
@@ -261,7 +372,10 @@ export function UploadModal({
 									{file ? (
 										<div className="flex flex-col items-center">
 											<Upload className="h-8 w-8 text-emerald-600 mb-2" />
-											<p className="text-sm font-medium text-emerald-900 dark:text-emerald-50 truncate max-w-full">
+											<p
+												className="text-sm font-medium text-emerald-900 dark:text-emerald-50 truncate max-w-[200px]"
+												title={file.name}
+											>
 												{file.name}
 											</p>
 											<p className="text-xs text-emerald-600 mt-1">

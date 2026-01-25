@@ -1,22 +1,32 @@
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ConfirmationModal } from "@/components/common/confirmation-modal";
 import { Logo } from "@/components/common/logo";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { deleteEvent, getGraphData } from "../api";
 import { EventDrawer } from "../components/event-drawer";
 import { HorizontalTimeline } from "../components/horizontal-timeline";
+import { TimelineItem } from "../components/timeline-item";
 import { UploadFAB } from "../components/upload-fab";
 import { UploadModal } from "../components/upload-modal";
+import { useEditStore } from "@/features/timeline/stores/edit-store";
+import { useTimelineCoordinator } from "@/features/timeline/stores/timeline-coordinator";
 import type { EventEdge, GraphData, TimelineEvent } from "../types";
 
-export function TimelineViewPage() {
+export function TimelineViewPage(): JSX.Element {
 	const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(
 		null,
 	);
-	const [editEvent, setEditEvent] = useState<TimelineEvent | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [data, setData] = useState<GraphData>({ events: [], edges: [] });
 	const [uploadModalOpen, setUploadModalOpen] = useState(false);
+	const [archiveTarget, setArchiveTarget] = useState<TimelineEvent | null>(null);
+	const [archiveError, setArchiveError] = useState<string | null>(null);
+	const [isArchiving, setIsArchiving] = useState(false);
+	const cancelEdit = useEditStore((state) => state.cancelEdit);
+	const startEdit = useTimelineCoordinator((state) => state.startEdit);
+	const startUpload = useTimelineCoordinator((state) => state.startUpload);
+	const resetAll = useTimelineCoordinator((state) => state.resetAll);
 
 	const refreshData = useCallback(async () => {
 		try {
@@ -43,22 +53,30 @@ export function TimelineViewPage() {
 	}, []);
 
 	const handleEdit = useCallback((event: TimelineEvent) => {
-		setEditEvent(event);
+		setSelectedEvent(null);
+		startEdit(event);
 		setUploadModalOpen(true);
+	}, [startEdit]);
+
+	const handleArchive = useCallback((event: TimelineEvent) => {
+		setArchiveTarget(event);
 	}, []);
 
-	const handleArchive = useCallback(async (event: TimelineEvent) => {
-		if (window.confirm("Are you sure you want to archive/delete this record? This action is immutable and will be recorded in your audit trail.")) {
-			try {
-				await deleteEvent(event.id);
-				await refreshData();
-				setSelectedEvent(null);
-			} catch (error) {
-				console.error("Failed to archive event", error);
-				alert("Failed to archive event. Please try again.");
-			}
+	const confirmArchive = useCallback(async () => {
+		if (!archiveTarget) return;
+		setIsArchiving(true);
+		try {
+			await deleteEvent(archiveTarget.id);
+			await refreshData();
+			setSelectedEvent(null);
+			setArchiveTarget(null);
+		} catch (error) {
+			console.error("Failed to archive event", error);
+			setArchiveError("Failed to archive event. Please try again.");
+		} finally {
+			setIsArchiving(false);
 		}
-	}, [refreshData]);
+	}, [archiveTarget, refreshData]);
 
 	const handleCloseDrawer = useCallback(() => {
 		setSelectedEvent(null);
@@ -99,12 +117,27 @@ export function TimelineViewPage() {
 	}, [selectedEvent, data]);
 
 	return (
-		<div
-			className="flex flex-col h-screen bg-background text-foreground overflow-hidden"
-		>
-			{/* Background Timeline Layer */}
+		<div className="flex flex-col h-screen bg-background text-foreground overflow-hidden relative">
+			{/* Header */}
+			<header className="flex items-center justify-between px-4 py-4 sm:px-6 bg-background/70 backdrop-blur-md border-b border-border/10 shrink-0 z-10">
+				<div className="flex items-center gap-4">
+					<Logo size="sm" />
+					<h1 className="text-lg font-bold tracking-tight text-foreground">
+						Medical Timeline
+					</h1>
+				</div>
+
+				<div className="flex items-center gap-4">
+					<div className="text-xs text-muted-foreground hidden sm:block">
+						Scroll to explore • Click for details
+					</div>
+					<ThemeToggle />
+				</div>
+			</header>
+
+			{/* Desktop Timeline */}
 			<div
-				className={`absolute inset-0 z-0 flex items-center transition-all duration-700 ease-in-out pointer-events-none ${selectedEvent
+				className={`absolute inset-0 top-[72px] z-0 hidden md:flex items-center transition-all duration-700 ease-in-out pointer-events-none ${selectedEvent
 					? "opacity-30 -translate-y-1/3 blur-[1.4px]"
 					: "opacity-100 translate-y-0"
 					}`}
@@ -124,26 +157,29 @@ export function TimelineViewPage() {
 				)}
 			</div>
 
-			{/* Content Overlays (Header, FABs, etc) */}
-			<main className="relative z-10 flex flex-col h-full pointer-events-none">
-				{/* Header */}
-				<header className="flex items-center justify-between px-6 py-4 bg-background/20 backdrop-blur-md border-b border-border/10 shrink-0 pointer-events-auto">
-					<div className="flex items-center gap-4">
-						<Logo size="sm" />
-						<h1 className="text-lg font-bold tracking-tight text-foreground">
-							Medical Timeline
-						</h1>
+			{/* Mobile List */}
+			<main className="flex-1 md:hidden overflow-y-auto px-4 py-6 space-y-4 safe-area-bottom">
+				{isLoading ? (
+					<div className="flex items-center justify-center h-full">
+						<Loader2 className="w-8 h-8 text-primary animate-spin" />
 					</div>
-
-					<div className="flex items-center gap-4">
-						<div className="text-xs text-muted-foreground hidden sm:block">
-							Scroll to explore • Click for details
-						</div>
-						<ThemeToggle />
-					</div>
-				</header>
-				<div className="flex-1" />{" "}
-				{/* Spacer for background timeline visibility */}
+				) : (
+					<>
+						{data.events.length === 0 ? (
+							<div className="text-sm text-muted-foreground text-center py-12">
+								No timeline events yet. Upload your first record to begin.
+							</div>
+						) : (
+							data.events.map((event) => (
+								<TimelineItem
+									key={event.id}
+									event={event}
+									onView={handleEventClick}
+								/>
+							))
+						)}
+					</>
+				)}
 			</main>
 
 			{/* Event Drawer (Cluster/Details) */}
@@ -157,21 +193,48 @@ export function TimelineViewPage() {
 			/>
 
 			{/* Upload FAB */}
-			<UploadFAB onClick={() => setUploadModalOpen(true)} />
+			<UploadFAB
+				onClick={() => {
+					startUpload();
+					setUploadModalOpen(true);
+				}}
+			/>
 
 			{/* Upload Modal */}
 			<UploadModal
 				isOpen={uploadModalOpen}
 				onClose={() => {
 					setUploadModalOpen(false);
-					setEditEvent(null);
+					resetAll();
 				}}
-				editEvent={editEvent}
-				onReset={() => setEditEvent(null)}
 				onSuccess={() => {
 					refreshData();
 					console.log("Operation successful");
+					cancelEdit();
 				}}
+			/>
+
+			<ConfirmationModal
+				isOpen={!!archiveTarget}
+				onOpenChange={(open) => !open && setArchiveTarget(null)}
+				onConfirm={confirmArchive}
+				title="Archive this record?"
+				message="This action is immutable and will be recorded in your audit trail."
+				confirmLabel="Archive"
+				cancelLabel="Cancel"
+				variant="warning"
+				isConfirming={isArchiving}
+			/>
+
+			<ConfirmationModal
+				isOpen={!!archiveError}
+				onOpenChange={(open) => !open && setArchiveError(null)}
+				onConfirm={() => setArchiveError(null)}
+				title="Archive failed"
+				message={archiveError ?? "Unable to archive record."}
+				confirmLabel="OK"
+				cancelLabel="Close"
+				variant="warning"
 			/>
 
 			{/* CSS Animation */}
