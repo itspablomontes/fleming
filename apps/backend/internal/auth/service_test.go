@@ -21,6 +21,27 @@ func (m *MockAuditService) GetLatestEntries(ctx context.Context, actor string, l
 func (m *MockAuditService) VerifyIntegrity(ctx context.Context) (bool, error) {
 	return true, nil
 }
+func (m *MockAuditService) BuildMerkleTree(ctx context.Context, startTime time.Time, endTime time.Time) (*internalAudit.AuditBatch, *audit.MerkleTree, error) {
+	return nil, nil, nil
+}
+func (m *MockAuditService) GetMerkleRoot(ctx context.Context, batchID string) (string, error) {
+	return "", nil
+}
+func (m *MockAuditService) VerifyMerkleProof(root string, entryHash string, proof *audit.Proof) bool {
+	return true
+}
+func (m *MockAuditService) GetEntriesForMerkle(ctx context.Context, startTime time.Time, endTime time.Time) ([]internalAudit.AuditEntry, error) {
+	return nil, nil
+}
+func (m *MockAuditService) GetEntryByID(ctx context.Context, id string) (*internalAudit.AuditEntry, error) {
+	return nil, nil
+}
+func (m *MockAuditService) GetEntriesByResource(ctx context.Context, resourceID string) ([]internalAudit.AuditEntry, error) {
+	return nil, nil
+}
+func (m *MockAuditService) QueryEntries(ctx context.Context, filter audit.QueryFilter) ([]internalAudit.AuditEntry, error) {
+	return nil, nil
+}
 
 type MockRepo struct {
 	challenges map[string]*Challenge
