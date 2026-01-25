@@ -18,7 +18,9 @@ type Service interface {
 	ApproveConsent(ctx context.Context, grantID string) error
 	DenyConsent(ctx context.Context, grantID string) error
 	RevokeConsent(ctx context.Context, grantID string) error
+	GetGrantByID(ctx context.Context, grantID string) (*ConsentGrant, error)
 	GetActiveGrants(ctx context.Context, grantee string) ([]ConsentGrant, error)
+	GetGrantsByGrantor(ctx context.Context, grantor string) ([]ConsentGrant, error)
 	CheckPermission(ctx context.Context, grantor, grantee string, permission string) (bool, error)
 }
 
@@ -115,6 +117,14 @@ func (s *service) RevokeConsent(ctx context.Context, grantID string) error {
 	return nil
 }
 
+func (s *service) GetGrantByID(ctx context.Context, grantID string) (*ConsentGrant, error) {
+	grant, err := s.repo.GetByID(ctx, grantID)
+	if err != nil {
+		return nil, err
+	}
+	return grant, nil
+}
+
 func (s *service) GetActiveGrants(ctx context.Context, grantee string) ([]ConsentGrant, error) {
 	all, err := s.repo.GetByGrantee(ctx, grantee)
 	if err != nil {
@@ -131,6 +141,14 @@ func (s *service) GetActiveGrants(ctx context.Context, grantee string) ([]Consen
 		}
 	}
 	return active, nil
+}
+
+func (s *service) GetGrantsByGrantor(ctx context.Context, grantor string) ([]ConsentGrant, error) {
+	grants, err := s.repo.GetByGrantor(ctx, grantor)
+	if err != nil {
+		return nil, err
+	}
+	return grants, nil
 }
 
 func (s *service) CheckPermission(ctx context.Context, grantor, grantee string, permission string) (bool, error) {
