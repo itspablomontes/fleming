@@ -69,16 +69,19 @@ export function AuditFilters({
 			<div className="space-y-2">
 				<Label>Resource Type</Label>
 				<Select
-					value={filters.resourceType}
+					value={filters.resourceType || "all"}
 					onValueChange={(value) =>
-						update("resourceType", value as AuditTargetTypeType)
+						update(
+							"resourceType",
+							value === "all" ? "" : (value as AuditTargetTypeType),
+						)
 					}
 				>
 					<SelectTrigger className="w-full">
 						<SelectValue placeholder="All types" />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="">All</SelectItem>
+						<SelectItem value="all">All</SelectItem>
 						{resourceOptions.map((option) => (
 							<SelectItem key={option} value={option}>
 								{option}
@@ -90,14 +93,16 @@ export function AuditFilters({
 			<div className="space-y-2">
 				<Label>Action</Label>
 				<Select
-					value={filters.action}
-					onValueChange={(value) => update("action", value as AuditActionType)}
+					value={filters.action || "all"}
+					onValueChange={(value) =>
+						update("action", value === "all" ? "" : (value as AuditActionType))
+					}
 				>
 					<SelectTrigger className="w-full">
 						<SelectValue placeholder="All actions" />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="">All</SelectItem>
+						<SelectItem value="all">All</SelectItem>
 						{actionOptions.map((option) => (
 							<SelectItem key={option} value={option}>
 								{option}
