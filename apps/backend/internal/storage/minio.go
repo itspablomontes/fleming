@@ -12,6 +12,7 @@ import (
 
 type MinIOStorage struct {
 	client *minio.Client
+	core   *minio.Core
 }
 
 func NewMinIOStorage(endpoint, accessKey, secretKey string, useSSL bool) (*MinIOStorage, error) {
@@ -23,8 +24,17 @@ func NewMinIOStorage(endpoint, accessKey, secretKey string, useSSL bool) (*MinIO
 		return nil, fmt.Errorf("failed to initialize minio client: %w", err)
 	}
 
+	coreClient, err := minio.NewCore(endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure: useSSL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize minio core client: %w", err)
+	}
+
 	return &MinIOStorage{
 		client: minioClient,
+		core:   coreClient,
 	}, nil
 }
 
@@ -74,4 +84,56 @@ func (s *MinIOStorage) GetURL(ctx context.Context, bucketName, objectName string
 		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
 	}
 	return presignedURL.String(), nil
+}
+
+func (s *MinIOStorage) CreateMultipartUpload(ctx context.Context, bucketName, objectName, contentType string) (string, error) {
+	exists, err := s.client.BucketExists(ctx, bucketName)
+	if err != nil {
+		return "", fmt.Errorf("failed to check if bucket exists: %w", err)
+	}
+	if !exists {
+		if err := s.client.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{}); err != nil {
+			return "", fmt.Errorf("failed to create bucket: %w", err)
+		}
+	}
+
+	uploadID, err := s.core.NewMultipartUpload(ctx, bucketName, objectName, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to start multipart upload: %w", err)
+	}
+
+	return uploadID, nil
+}
+
+func (s *MinIOStorage) UploadPart(ctx context.Context, bucketName, objectName, uploadID string, partNumber int, reader io.Reader, objectSize int64) (string, error) {
+	info, err := s.core.PutObjectPart(ctx, bucketName, objectName, uploadID, partNumber, reader, objectSize, minio.PutObjectPartOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to upload part %d: %w", partNumber, err)
+	}
+	return info.ETag, nil
+}
+
+func (s *MinIOStorage) CompleteMultipartUpload(ctx context.Context, bucketName, objectName, uploadID string, parts []Part) (string, error) {
+	minioParts := make([]minio.CompletePart, 0, len(parts))
+	for _, part := range parts {
+		minioParts = append(minioParts, minio.CompletePart{
+			ETag:       part.ETag,
+			PartNumber: part.Number,
+		})
+	}
+
+	_, err := s.core.CompleteMultipartUpload(ctx, bucketName, objectName, uploadID, minioParts, minio.PutObjectOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to complete multipart upload: %w", err)
+	}
+	return objectName, nil
+}
+
+func (s *MinIOStorage) AbortMultipartUpload(ctx context.Context, bucketName, objectName, uploadID string) error {
+	if err := s.core.AbortMultipartUpload(ctx, bucketName, objectName, uploadID); err != nil {
+		return fmt.Errorf("failed to abort multipart upload: %w", err)
+	}
+	return nil
 }
