@@ -165,13 +165,20 @@ func (h *Handler) HandleAddEvent(c *gin.Context) {
 
 // HandleDownloadFile serves a file's ciphertext blob.
 func (h *Handler) HandleDownloadFile(c *gin.Context) {
+	addressVal, exists := c.Get("user_address")
+	address, ok := addressVal.(string)
+	if !exists || !ok || address == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	fileID := c.Param("fileId")
 	if fileID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file ID is required"})
 		return
 	}
 
-	file, reader, err := h.service.GetFile(c.Request.Context(), fileID)
+	file, reader, err := h.service.GetFile(c.Request.Context(), fileID, address)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 		return

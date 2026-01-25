@@ -27,7 +27,7 @@ type Service interface {
 	GetGraphData(ctx context.Context, patientID string) (*GraphData, error)
 
 	UploadFile(ctx context.Context, eventID string, fileName string, contentType string, reader io.Reader, size int64, wrappedDEK []byte, metadata common.JSONMap) (*EventFile, error)
-	GetFile(ctx context.Context, fileID string) (*EventFile, io.ReadCloser, error)
+	GetFile(ctx context.Context, fileID string, actor string) (*EventFile, io.ReadCloser, error)
 
 	StartMultipartUpload(ctx context.Context, eventID string, fileName string, contentType string) (string, string, error)
 	UploadMultipartPart(ctx context.Context, objectName string, uploadID string, partNumber int, reader io.Reader, size int64) (string, error)
@@ -278,10 +278,21 @@ func (s *service) UploadFile(ctx context.Context, eventID string, fileName strin
 		return nil, fmt.Errorf("repo create file: %w", err)
 	}
 
+	if event, err := s.repo.GetByID(ctx, eventID); err == nil && event != nil {
+		auditMetadata := common.JSONMap{
+			"eventId":   eventID,
+			"fileName":  fileName,
+			"fileSize":  size,
+			"mimeType":  contentType,
+			"isMultipart": false,
+		}
+		_ = s.auditService.Record(ctx, event.PatientID, protocol.ActionUpload, protocol.ResourceFile, file.ID, auditMetadata)
+	}
+
 	return file, nil
 }
 
-func (s *service) GetFile(ctx context.Context, fileID string) (*EventFile, io.ReadCloser, error) {
+func (s *service) GetFile(ctx context.Context, fileID string, actor string) (*EventFile, io.ReadCloser, error) {
 	file, err := s.repo.GetFileByID(ctx, fileID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("repo get file %s: %w", fileID, err)
@@ -290,6 +301,16 @@ func (s *service) GetFile(ctx context.Context, fileID string) (*EventFile, io.Re
 	reader, err := s.storage.Get(ctx, "fleming-blobs", file.BlobRef)
 	if err != nil {
 		return nil, nil, fmt.Errorf("storage get %s: %w", file.BlobRef, err)
+	}
+
+	if actor != "" {
+		auditMetadata := common.JSONMap{
+			"eventId":  file.EventID,
+			"fileName": file.FileName,
+			"fileSize": file.FileSize,
+			"mimeType": file.MimeType,
+		}
+		_ = s.auditService.Record(ctx, actor, protocol.ActionDownload, protocol.ResourceFile, file.ID, auditMetadata)
 	}
 
 	return file, reader, nil
@@ -339,6 +360,17 @@ func (s *service) CompleteMultipartUpload(
 		return nil, fmt.Errorf("repo create file: %w", err)
 	}
 
+	if event, err := s.repo.GetByID(ctx, eventID); err == nil && event != nil {
+		auditMetadata := common.JSONMap{
+			"eventId":     eventID,
+			"fileName":    fileName,
+			"fileSize":    size,
+			"mimeType":    contentType,
+			"isMultipart": true,
+		}
+		_ = s.auditService.Record(ctx, event.PatientID, protocol.ActionUpload, protocol.ResourceFile, file.ID, auditMetadata)
+	}
+
 	return file, nil
 }
 
@@ -365,5 +397,23 @@ func (s *service) SaveFileAccess(ctx context.Context, fileID string, grantee str
 		Grantee:   grantee,
 		WrappedDEK: wrappedDEK,
 	}
-	return s.repo.UpsertFileAccess(ctx, access)
+	if err := s.repo.UpsertFileAccess(ctx, access); err != nil {
+		return err
+	}
+
+	file, err := s.repo.GetFileByID(ctx, fileID)
+	if err != nil {
+		return err
+	}
+	event, err := s.repo.GetByID(ctx, file.EventID)
+	if err == nil && event != nil {
+		auditMetadata := common.JSONMap{
+			"eventId":  file.EventID,
+			"fileName": file.FileName,
+			"grantee":  grantee,
+		}
+		_ = s.auditService.Record(ctx, event.PatientID, protocol.ActionShare, protocol.ResourceFile, fileID, auditMetadata)
+	}
+
+	return nil
 }
