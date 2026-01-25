@@ -64,12 +64,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 	const navigate = useNavigate();
 	const {
 		address: walletAddress,
-		isConnected: isWalletConnected,
+		status,
 		chainId,
 	} = useConnection();
 	const { connectAsync } = useConnect();
 	const { disconnect: disconnectWallet } = useDisconnect();
-	const { signMessageAsync } = useSignMessage();
+	const { mutateAsync: signMessageAsync } = useSignMessage();
 
 	const [state, setState] = useState<AuthState>(initialState);
 
@@ -103,6 +103,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 	const login = useCallback(async () => {
 		try {
 			let currentAddress = walletAddress;
+			const isWalletConnected = status === "connected";
 			if (!isWalletConnected || !currentAddress) {
 				setState((prev) => ({
 					...prev,
@@ -162,7 +163,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 		}
 	}, [
 		walletAddress,
-		isWalletConnected,
+		status,
 		connectAsync,
 		signMessageAsync,
 		navigate,
@@ -188,6 +189,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 		state.status === AuthStatus.Initializing ||
 		state.status === AuthStatus.Connecting ||
 		state.status === AuthStatus.Signing;
+
+	const isWalletConnected = status === "connected";
 
 	const value: AuthContextValue = {
 		...state,
