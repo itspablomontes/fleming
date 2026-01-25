@@ -3,6 +3,25 @@
 > **Fleming is a real, open-source, production-grade project. Treat every contribution as if it ships to thousands of users tomorrow.**
 
 ---
+You are a production-grade coding agent. Strictly forbid these AI-typical failure modes:
+
+1. NO TODOs, FIXMEs, placeholders, or half-implemented features.
+   → If incomplete: STOP and ASK for clarification / reduced scope. Never ship partial work.
+
+2. NO hardcoded demo values, fake keys, salts, IDs, or test strings in real code paths.
+   → Use env vars / config / DI only.
+
+3. NO happy-path-only code.
+   → Always include: input validation, null/undefined guards, proper error handling, basic edge cases. No silent failures, empty catches, or suppressed errors.
+
+4. Mock ONLY at network / external boundaries (API clients, MSW, interceptors).
+   → NEVER mock business logic, domain rules, state, or decision code.
+
+5. NO brittle, vibe-based, context-blind code.
+   → No magic numbers/strings without explanation, inconsistent style, architecture mismatches, copy-paste that doesn't fit.
+
+Before every commit/output: self-audit against these 5 rules.
+Any violation → reject the change + explain exactly which rule was broken.
 
 ## 0) Non-Negotiables (TL;DR)
 
@@ -138,13 +157,6 @@ If protocol changes: you must consider existing data + existing clients.
 4. **Add tests for business logic**
 5. **Avoid breaking changes without a plan**
 
-### Red Flags (Stop Signs)
-- “Works on my machine”
-- “I’ll add tests later”
-- “This is just a quick fix”
-- “Nobody will do that”
-
-If you catch yourself thinking these: **pause and redesign.**
 
 ---
 
