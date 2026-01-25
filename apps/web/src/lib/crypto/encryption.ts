@@ -8,6 +8,12 @@ interface EncryptedFile {
   iv: Uint8Array;
 }
 
+export interface ChunkedEncryptionMetadata {
+  chunkSize: number;
+  totalSize: number;
+  ivLength: number;
+}
+
 /**
  * Encrypts file data using a Data Encryption Key (DEK).
  * AES-GCM provides both confidentiality and integrity.
@@ -79,4 +85,38 @@ export async function unwrapKey(
     true, // Unwrapped DEK is exportable
     ["encrypt", "decrypt"],
   );
+}
+
+export async function decryptChunkedBuffer(
+  encryptedBuffer: ArrayBuffer,
+  dek: CryptoKey,
+  metadata: ChunkedEncryptionMetadata,
+): Promise<ArrayBuffer> {
+  const { chunkSize, totalSize, ivLength } = metadata;
+  let offset = 0;
+  let remainingPlaintext = totalSize;
+  const plaintextChunks: ArrayBuffer[] = [];
+
+  while (offset < encryptedBuffer.byteLength && remainingPlaintext > 0) {
+    const iv = new Uint8Array(encryptedBuffer.slice(offset, offset + ivLength));
+    offset += ivLength;
+
+    const expectedChunk = Math.min(chunkSize, remainingPlaintext);
+    const ciphertext = encryptedBuffer.slice(offset, offset + expectedChunk);
+    offset += expectedChunk;
+    remainingPlaintext -= expectedChunk;
+
+    const decryptedChunk = await decryptFile(ciphertext, iv, dek);
+    plaintextChunks.push(decryptedChunk);
+  }
+
+  const totalLength = plaintextChunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+  const combined = new Uint8Array(totalLength);
+  let writeOffset = 0;
+  for (const chunk of plaintextChunks) {
+    combined.set(new Uint8Array(chunk), writeOffset);
+    writeOffset += chunk.byteLength;
+  }
+
+  return combined.buffer;
 }
