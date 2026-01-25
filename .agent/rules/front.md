@@ -23,6 +23,8 @@ We write **clean, maintainable, type-safe, SOLID-compliant** React code.
 | **Forms**       | TanStack Form + Zod                                 |
 | **Routing**     | TanStack Router (file-based)                        |
 | **State**       | React Query for server state, Context for DI        |
+| **Health**      | **ALWAYS** run type checks & linting in `features/` |
+
 
 ### Dark Mode Pattern
 **Always include dark mode variants** when styling components:
@@ -165,6 +167,7 @@ src/
 ```
 
 ## 5. PR Checklist
+- [ ] **Type & Lint Check**: Run `biome check --apply .` and ensure no warnings/errors in `features/`.
 - [ ] No `any`.
 - [ ] Dark mode variants included.
 - [ ] `pnpm audit` passes.
