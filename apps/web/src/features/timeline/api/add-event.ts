@@ -2,7 +2,7 @@ import { apiClient } from "@/lib/api-client";
 import type { UploadResponse } from "../types";
 
 export interface UploadPayload {
-	file: File | Blob;
+	file?: File | Blob;
 	eventType: string;
 	title: string;
 	description: string;
@@ -17,7 +17,9 @@ export interface UploadPayload {
 
 export const addEvent = (payload: UploadPayload): Promise<UploadResponse> => {
 	const formData = new FormData();
-	formData.append("file", payload.file);
+	if (payload.file) {
+		formData.append("file", payload.file);
+	}
 	formData.append("eventType", payload.eventType);
 	formData.append("title", payload.title);
 	formData.append("description", payload.description);
@@ -52,7 +54,7 @@ export interface CorrectionPayload extends Omit<UploadPayload, "file"> {
 
 export const correctEvent = (payload: CorrectionPayload): Promise<UploadResponse> => {
 	const formData = new FormData();
-	
+
 	if (payload.file) {
 		formData.append("file", payload.file);
 	}

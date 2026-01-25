@@ -17,7 +17,7 @@ const VaultContext = createContext<VaultContextType | undefined>(undefined);
 export function VaultProvider({ children }: { children: React.ReactNode }) {
   const { address, status } = useConnection();
   const { mutateAsync: signMessageAsync } = useSignMessage();
-  
+
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [masterKey, setMasterKey] = useState<CryptoKey | null>(null);
@@ -30,19 +30,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   // Auto-lock when wallet disconnects or changes
   useEffect(() => {
-    if (status !== "connected" || !address) {
+		if (status !== "connected" || !address) {
       lockVault();
     }
-  }, [status, address, lockVault]);
+	}, [status, address, lockVault]);
 
   const unlockVault = useCallback(async () => {
-    if (!address) return;
+		if (!address) return;
     setIsUnlocking(true);
 
     try {
       // 1. Request signature from wallet
       const signature = await signMessageAsync({
-        message: `Unlock Fleming Vault for ${address}\n\nSign this message to derive your encryption keys.`,
+				message: `Unlock Fleming Vault for ${address}\n\nSign this message to derive your encryption keys.`,
       });
 
       // 2. Fetch User Salt from Backend
@@ -67,7 +67,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsUnlocking(false);
     }
-  }, [address, signMessageAsync]);
+	}, [address, signMessageAsync]);
 
   return (
     <VaultContext.Provider
