@@ -24,6 +24,10 @@ alwaysApply: true
 2. **Verify Before Completing**: Run tests and validate in runtime (browser/API).
 3. **Read Surrounding Context**: Never edit a file without understanding its neighbors.
 4. **Communicate Ambiguity**: Ask clarifying questions instead of guessing.
+5. **Type Check Always**: For every feature implementation, run type checks for both Go and TypeScript:
+   - **Go**: Run `go build ./...` and `go test ./...` to catch compilation and type errors
+   - **TypeScript**: Run `pnpm exec tsc --noEmit` (or equivalent) to catch type errors
+   - **Iterate**: Fix type errors immediately before proceeding. Never ship code with type errors.
 
 ## 4. Engineering Standards
 - **Clean Code**: Meaningful names, small functions, no dead code.
