@@ -55,6 +55,7 @@ func main() {
 
 	if err := db.AutoMigrate(
 		&auth.Challenge{},
+		&auth.User{},
 		&timeline.TimelineEvent{},
 		&timeline.EventEdge{},
 		&timeline.EventFile{},
