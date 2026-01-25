@@ -1,4 +1,3 @@
-import type { TimelineEventType } from "@/features/timeline/types";
 import type { EthAddress } from "@/types/ethereum";
 
 /**
@@ -10,8 +9,7 @@ import type { EthAddress } from "@/types/ethereum";
  */
 export const ConsentState = {
 	Requested: "requested",
-	Pending: "pending",
-	Granted: "granted",
+	Approved: "approved",
 	Denied: "denied",
 	Revoked: "revoked",
 	Expired: "expired",
@@ -23,9 +21,8 @@ export type ConsentState = (typeof ConsentState)[keyof typeof ConsentState];
  * User-facing labels for consent states.
  */
 export const CONSENT_STATE_LABELS: Record<ConsentState, string> = {
-	requested: "Pending Your Review",
-	pending: "Processing",
-	granted: "Access Granted",
+	requested: "Pending Review",
+	approved: "Access Granted",
 	denied: "Denied",
 	revoked: "Revoked",
 	expired: "Expired",
@@ -39,39 +36,43 @@ export const CONSENT_STATE_VARIANTS: Record<
 	"warning" | "success" | "destructive" | "secondary"
 > = {
 	requested: "warning",
-	pending: "warning",
-	granted: "success",
+	approved: "success",
 	denied: "secondary",
 	revoked: "destructive",
 	expired: "secondary",
 };
 
 /**
- * Defines the scope of data access granted.
+ * Permission types for consent grants.
  */
-export interface ConsentScope {
-	readonly eventTypes?: readonly TimelineEventType[];
-	readonly dateFrom?: Date;
-	readonly dateTo?: Date;
-}
+export const ConsentPermission = {
+	Read: "read",
+	Write: "write",
+	Share: "share",
+} as const;
+
+export type ConsentPermission =
+	(typeof ConsentPermission)[keyof typeof ConsentPermission];
 
 /**
- * Represents a consent record on the chain/system.
- * All fields are readonly to ensure immutability.
+ * Represents a consent grant stored in the backend.
  */
-export interface Consent {
+export interface ConsentGrant {
 	readonly id: string;
-	readonly grantorId: string;
-	readonly grantorAddress: EthAddress;
-	readonly granteeId: string;
-	readonly granteeAddress: EthAddress;
-	readonly granteeDisplayName?: string;
+	readonly grantor: EthAddress;
+	readonly grantee: EthAddress;
+	readonly scope?: readonly string[];
+	readonly permissions: readonly ConsentPermission[];
 	readonly state: ConsentState;
-	readonly scope: ConsentScope;
 	readonly reason?: string;
 	readonly expiresAt?: Date;
 	readonly createdAt: Date;
 	readonly updatedAt: Date;
-	readonly revokedAt?: Date;
-	readonly anchoredTxHash?: string;
+}
+
+export interface ConsentRequestPayload {
+	readonly grantor: EthAddress;
+	readonly permissions: readonly ConsentPermission[];
+	readonly reason?: string;
+	readonly durationDays?: number;
 }

@@ -1,16 +1,18 @@
 import { Loader2 } from "lucide-react";
+import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppNavigation } from "@/components/common/app-navigation";
 import { ConfirmationModal } from "@/components/common/confirmation-modal";
 import { Logo } from "@/components/common/logo";
 import { ThemeToggle } from "@/components/common/theme-toggle";
+import { useEditStore } from "@/features/timeline/stores/edit-store";
+import { useTimelineCoordinator } from "@/features/timeline/stores/timeline-coordinator";
 import { deleteEvent, getGraphData } from "../api";
 import { EventDrawer } from "../components/event-drawer";
 import { HorizontalTimeline } from "../components/horizontal-timeline";
 import { TimelineItem } from "../components/timeline-item";
 import { UploadFAB } from "../components/upload-fab";
 import { UploadModal } from "../components/upload-modal";
-import { useEditStore } from "@/features/timeline/stores/edit-store";
-import { useTimelineCoordinator } from "@/features/timeline/stores/timeline-coordinator";
 import type { EventEdge, GraphData, TimelineEvent } from "../types";
 
 export function TimelineViewPage(): JSX.Element {
@@ -20,7 +22,9 @@ export function TimelineViewPage(): JSX.Element {
 	const [isLoading, setIsLoading] = useState(true);
 	const [data, setData] = useState<GraphData>({ events: [], edges: [] });
 	const [uploadModalOpen, setUploadModalOpen] = useState(false);
-	const [archiveTarget, setArchiveTarget] = useState<TimelineEvent | null>(null);
+	const [archiveTarget, setArchiveTarget] = useState<TimelineEvent | null>(
+		null,
+	);
 	const [archiveError, setArchiveError] = useState<string | null>(null);
 	const [isArchiving, setIsArchiving] = useState(false);
 	const cancelEdit = useEditStore((state) => state.cancelEdit);
@@ -52,11 +56,14 @@ export function TimelineViewPage(): JSX.Element {
 		setSelectedEvent(event);
 	}, []);
 
-	const handleEdit = useCallback((event: TimelineEvent) => {
-		setSelectedEvent(null);
-		startEdit(event);
-		setUploadModalOpen(true);
-	}, [startEdit]);
+	const handleEdit = useCallback(
+		(event: TimelineEvent) => {
+			setSelectedEvent(null);
+			startEdit(event);
+			setUploadModalOpen(true);
+		},
+		[startEdit],
+	);
 
 	const handleArchive = useCallback((event: TimelineEvent) => {
 		setArchiveTarget(event);
@@ -110,10 +117,10 @@ export function TimelineViewPage(): JSX.Element {
 				};
 			})
 			.filter(Boolean) as {
-				event: TimelineEvent;
-				edge: EventEdge;
-				direction: "incoming" | "outgoing";
-			}[];
+			event: TimelineEvent;
+			edge: EventEdge;
+			direction: "incoming" | "outgoing";
+		}[];
 	}, [selectedEvent, data]);
 
 	return (
@@ -132,15 +139,17 @@ export function TimelineViewPage(): JSX.Element {
 						Scroll to explore • Click for details
 					</div>
 					<ThemeToggle />
+					<AppNavigation triggerClassName="shadow-none" />
 				</div>
 			</header>
 
 			{/* Desktop Timeline */}
 			<div
-				className={`absolute inset-0 top-[72px] z-0 hidden md:flex items-center transition-all duration-700 ease-in-out pointer-events-none ${selectedEvent
-					? "opacity-30 -translate-y-1/3 blur-[1.4px]"
-					: "opacity-100 translate-y-0"
-					}`}
+				className={`absolute inset-0 top-[72px] z-0 hidden md:flex items-center transition-all duration-700 ease-in-out pointer-events-none ${
+					selectedEvent
+						? "opacity-30 -translate-y-1/3 blur-[1.4px]"
+						: "opacity-100 translate-y-0"
+				}`}
 			>
 				{isLoading ? (
 					<div className="flex items-center justify-center w-full h-full">
@@ -163,22 +172,18 @@ export function TimelineViewPage(): JSX.Element {
 					<div className="flex items-center justify-center h-full">
 						<Loader2 className="w-8 h-8 text-primary animate-spin" />
 					</div>
+				) : data.events.length === 0 ? (
+					<div className="text-sm text-muted-foreground text-center py-12">
+						No timeline events yet. Upload your first record to begin.
+					</div>
 				) : (
-					<>
-						{data.events.length === 0 ? (
-							<div className="text-sm text-muted-foreground text-center py-12">
-								No timeline events yet. Upload your first record to begin.
-							</div>
-						) : (
-							data.events.map((event) => (
-								<TimelineItem
-									key={event.id}
-									event={event}
-									onView={handleEventClick}
-								/>
-							))
-						)}
-					</>
+					data.events.map((event) => (
+						<TimelineItem
+							key={event.id}
+							event={event}
+							onView={handleEventClick}
+						/>
+					))
 				)}
 			</main>
 
