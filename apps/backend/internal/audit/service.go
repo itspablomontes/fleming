@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
+	"time"
 
 	"github.com/itspablomontes/fleming/apps/backend/internal/common"
 	"github.com/itspablomontes/fleming/pkg/protocol/audit"
@@ -16,6 +18,13 @@ type Service interface {
 	Record(ctx context.Context, actor string, action audit.Action, resourceType audit.ResourceType, resourceID string, metadata common.JSONMap) error
 	GetLatestEntries(ctx context.Context, actor string, limit int) ([]AuditEntry, error)
 	VerifyIntegrity(ctx context.Context) (bool, error)
+	BuildMerkleTree(ctx context.Context, startTime time.Time, endTime time.Time) (*AuditBatch, *audit.MerkleTree, error)
+	GetMerkleRoot(ctx context.Context, batchID string) (string, error)
+	VerifyMerkleProof(root string, entryHash string, proof *audit.Proof) bool
+	GetEntriesForMerkle(ctx context.Context, startTime time.Time, endTime time.Time) ([]AuditEntry, error)
+	GetEntryByID(ctx context.Context, id string) (*AuditEntry, error)
+	GetEntriesByResource(ctx context.Context, resourceID string) ([]AuditEntry, error)
+	QueryEntries(ctx context.Context, filter audit.QueryFilter) ([]AuditEntry, error)
 }
 
 type service struct {
@@ -120,4 +129,85 @@ func (s *service) VerifyIntegrity(ctx context.Context) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (s *service) GetEntriesForMerkle(ctx context.Context, startTime time.Time, endTime time.Time) ([]AuditEntry, error) {
+	filter := audit.NewQueryFilter()
+	if !startTime.IsZero() {
+		ts := types.NewTimestamp(startTime)
+		filter.StartTime = &ts
+	}
+	if !endTime.IsZero() {
+		ts := types.NewTimestamp(endTime)
+		filter.EndTime = &ts
+	}
+	filter.Limit = 0
+
+	return s.repo.Query(ctx, filter)
+}
+
+func (s *service) GetEntryByID(ctx context.Context, id string) (*AuditEntry, error) {
+	return s.repo.GetByID(ctx, types.ID(id))
+}
+
+func (s *service) GetEntriesByResource(ctx context.Context, resourceID string) ([]AuditEntry, error) {
+	return s.repo.GetByResource(ctx, types.ID(resourceID))
+}
+
+func (s *service) QueryEntries(ctx context.Context, filter audit.QueryFilter) ([]AuditEntry, error) {
+	return s.repo.Query(ctx, filter)
+}
+
+func (s *service) BuildMerkleTree(ctx context.Context, startTime time.Time, endTime time.Time) (*AuditBatch, *audit.MerkleTree, error) {
+	entries, err := s.GetEntriesForMerkle(ctx, startTime, endTime)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build merkle tree: %w", err)
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Timestamp.Equal(entries[j].Timestamp) {
+			return entries[i].ID < entries[j].ID
+		}
+		return entries[i].Timestamp.Before(entries[j].Timestamp)
+	})
+
+	protocolEntries := make([]audit.Entry, 0, len(entries))
+	for _, entry := range entries {
+		protocolEntries = append(protocolEntries, audit.Entry{
+			Hash: entry.Hash,
+		})
+	}
+
+	tree, err := audit.BuildMerkleTree(protocolEntries)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build merkle tree: %w", err)
+	}
+
+	batch := &AuditBatch{
+		RootHash:   tree.Root,
+		StartTime:  startTime.UTC(),
+		EndTime:    endTime.UTC(),
+		EntryCount: len(entries),
+		CreatedAt:  time.Now().UTC(),
+	}
+	if err := s.repo.CreateBatch(ctx, batch); err != nil {
+		return nil, nil, fmt.Errorf("create audit batch: %w", err)
+	}
+
+	return batch, tree, nil
+}
+
+func (s *service) GetMerkleRoot(ctx context.Context, batchID string) (string, error) {
+	batch, err := s.repo.GetBatchByID(ctx, batchID)
+	if err != nil {
+		return "", err
+	}
+	if batch == nil {
+		return "", nil
+	}
+	return batch.RootHash, nil
+}
+
+func (s *service) VerifyMerkleProof(root string, entryHash string, proof *audit.Proof) bool {
+	return audit.VerifyProof(root, entryHash, proof)
 }
