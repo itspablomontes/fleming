@@ -1,3 +1,7 @@
+---
+alwaysApply: true
+---
+
 # Fleming Core Directives
 
 > Fleming is a production-grade project for medical health history. Correctness and Privacy are non-negotiable.

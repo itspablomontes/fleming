@@ -1,3 +1,7 @@
+---
+globs: *.go
+alwaysApply: false
+---
 # Fleming Backend Directives (Go 1.25+)
 
 > Favor clarity over cleverness. Explicitness over implicitness.
