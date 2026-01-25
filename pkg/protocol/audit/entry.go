@@ -29,6 +29,7 @@ const (
 
 	ActionUpload   Action = "file.upload"
 	ActionDownload Action = "file.download"
+	ActionShare    Action = "file.share"
 )
 
 func ValidActions() []Action {
@@ -37,7 +38,7 @@ func ValidActions() []Action {
 		ActionConsentRequest, ActionConsentApprove, ActionConsentDeny,
 		ActionConsentRevoke, ActionConsentExpire,
 		ActionLogin, ActionLogout,
-		ActionUpload, ActionDownload,
+		ActionUpload, ActionDownload, ActionShare,
 	}
 }
 
