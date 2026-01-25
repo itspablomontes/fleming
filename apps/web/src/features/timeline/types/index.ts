@@ -235,6 +235,7 @@ export interface TimelineEvent {
 	readonly metadata?: Record<string, unknown>;
 	readonly createdAt: string;
 	readonly updatedAt: string;
+	readonly files?: EventFile[];
 }
 
 /**
@@ -260,6 +261,7 @@ export interface EventFile {
 	readonly fileName: string;
 	readonly mimeType: string;
 	readonly fileSize: number;
+	readonly wrappedDek?: string;
 	readonly metadata?: Record<string, unknown>;
 	readonly createdAt: string;
 }
