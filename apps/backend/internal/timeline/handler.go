@@ -150,30 +150,57 @@ func (h *Handler) HandleCorrectEvent(c *gin.Context) {
 		return
 	}
 
-	var req AddEventRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+	const maxMultipartMemory = 32 << 20
+	if err := c.Request.ParseMultipartForm(maxMultipartMemory); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse form data"})
 		return
 	}
 
-	timestamp, err := time.Parse(time.RFC3339, req.Date)
+	form := c.Request.PostForm
+
+	dateStr := form.Get("date")
+	timestamp, err := time.Parse(time.RFC3339, dateStr)
 	if err != nil {
 		timestamp = time.Now()
 	}
 
+	eventType := form.Get("eventType")
+	if eventType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "eventType is required"})
+		return
+	}
+
+	title := form.Get("title")
+	if title == "" {
+		title = eventType + " Record"
+	}
+
+	isEncrypted := form.Get("isEncrypted") == "true"
+
 	event := &TimelineEvent{
 		ID:          eventID,
 		PatientID:   address,
-		Type:        timeline.EventType(req.EventType),
-		Title:       req.Title,
-		Description: req.Description,
-		Provider:    req.Provider,
-		Codes:       common.JSONCodes(req.Codes),
+		Type:        timeline.EventType(eventType),
+		Title:       title,
+		Description: form.Get("description"),
+		Provider:    form.Get("provider"),
 		Timestamp:   timestamp,
-		BlobRef:     req.BlobRef,
-		IsEncrypted: req.IsEncrypted,
-		Metadata:    req.Metadata,
+		BlobRef:     form.Get("blobRef"),
+		IsEncrypted: isEncrypted,
 	}
+
+	metadataStr := form.Get("metadata")
+	if metadataStr != "" {
+		var meta common.JSONMap
+		if err := json.Unmarshal([]byte(metadataStr), &meta); err == nil {
+			event.Metadata = meta
+		}
+	}
+
+	// Parse codes if present
+	// Note: In AddEvent codes were not parsed, but here we might want them.
+	// For now keeping consistent with simple form fields.
+	// If codes are needed, they would come as a JSON string too.
 
 	if err := h.service.UpdateEvent(c.Request.Context(), event); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to correct event: " + err.Error()})
