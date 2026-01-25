@@ -39,6 +39,7 @@ const iconComponents: Record<TimelineEventType, React.ElementType> = {
 	referral: UserPlus,
 	insurance_claim: FileCheck,
 	other: File,
+	tombstone: File,
 };
 
 interface TimelineItemProps {
