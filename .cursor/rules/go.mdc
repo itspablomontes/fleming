@@ -31,7 +31,14 @@ alwaysApply: false
 - **Prefer `errgroup`**: For parallel tasks with error propagation.
 - **Mutexes**: Use `sync.RWMutex` for shared state protection.
 
-## 6. Testing Strategy
+## 6. Performance & Efficiency (Go 1.25)
+- **Avoid Allocations**: Preallocate slices/maps when sizes are known.
+- **Reuse Buffers**: Use `bytes.Buffer` or `strings.Builder` for string assembly.
+- **Prefer stdlib helpers**: Use `cmp`, `slices`, `maps` instead of custom loops.
+- **Context Cause**: Use `context.WithCancelCause`/`WithTimeoutCause` for cancellation diagnostics.
+- **Structured Logging**: Use `slog` fields, avoid `fmt.Sprintf` in hot paths.
+
+## 7. Testing Strategy
 - **Table-Driven**: Default for all unit tests.
 - **Coverage**: 80%+ on domain/services.
 - **Parallel**: Use `t.Parallel()` for independent tests.
