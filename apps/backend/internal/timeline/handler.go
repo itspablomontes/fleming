@@ -6,6 +6,9 @@ import (
 	"strconv"
 	"time"
 
+	"io"
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
 	"github.com/itspablomontes/fleming/apps/backend/internal/common"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
@@ -129,10 +132,56 @@ func (h *Handler) HandleAddEvent(c *gin.Context) {
 		return
 	}
 
+	// Handle File Upload if present
+	file, header, err := c.Request.FormFile("file")
+	if err == nil {
+		defer file.Close()
+		wrappedKeyStr := form.Get("wrappedKey")
+		wrappedKey, _ := common.HexToBytes(wrappedKeyStr) // Assume helper exists or add it
+
+		_, err = h.service.UploadFile(
+			c.Request.Context(),
+			event.ID,
+			header.Filename,
+			header.Header.Get("Content-Type"),
+			file,
+			header.Size,
+			wrappedKey,
+		)
+		if err != nil {
+			slog.Warn("Failed to upload attached file", "error", err, "eventId", event.ID)
+			// We don't fail the whole request because the event itself was created
+		}
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"event":   event,
 	})
+}
+
+// HandleDownloadFile serves a file's ciphertext blob.
+func (h *Handler) HandleDownloadFile(c *gin.Context) {
+	fileID := c.Param("fileId")
+	if fileID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file ID is required"})
+		return
+	}
+
+	file, reader, err := h.service.GetFile(c.Request.Context(), fileID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+	defer reader.Close()
+
+	c.Header("Content-Disposition", "attachment; filename="+file.FileName)
+	c.Header("Content-Type", file.MimeType)
+	c.Header("Content-Length", strconv.FormatInt(file.FileSize, 10))
+
+	if _, err := io.Copy(c.Writer, reader); err != nil {
+		slog.Error("failed to pipe file content", "error", err)
+	}
 }
 
 // HandleCorrectEvent implements the "Edit" logic using the Append-Only flow.

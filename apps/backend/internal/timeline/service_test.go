@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"io"
+
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
 	"github.com/itspablomontes/fleming/apps/backend/internal/common"
 	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
@@ -21,6 +23,21 @@ func (m *MockAuditService) GetLatestEntries(ctx context.Context, actor string, l
 }
 func (m *MockAuditService) VerifyIntegrity(ctx context.Context) (bool, error) {
 	return true, nil
+}
+
+type MockStorage struct{}
+
+func (m *MockStorage) Put(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, contentType string) (string, error) {
+	return objectName, nil
+}
+func (m *MockStorage) Get(ctx context.Context, bucketName, objectName string) (io.ReadCloser, error) {
+	return nil, nil
+}
+func (m *MockStorage) Delete(ctx context.Context, bucketName, objectName string) error {
+	return nil
+}
+func (m *MockStorage) GetURL(ctx context.Context, bucketName, objectName string) (string, error) {
+	return "http://localhost:9000/" + objectName, nil
 }
 
 type MockRepo struct {
@@ -105,10 +122,23 @@ func (m *MockRepo) Transaction(ctx context.Context, fn func(repo Repository) err
 	return fn(m)
 }
 
+func (m *MockRepo) CreateFile(ctx context.Context, file *EventFile) error {
+	return nil
+}
+
+func (m *MockRepo) GetFileByID(ctx context.Context, id string) (*EventFile, error) {
+	return nil, nil
+}
+
+func (m *MockRepo) GetFilesByEventID(ctx context.Context, eventID string) ([]EventFile, error) {
+	return nil, nil
+}
+
 func TestService_AddEvent(t *testing.T) {
 	repo := &MockRepo{}
 	auditSvc := &MockAuditService{}
-	svc := NewService(repo, auditSvc)
+	storageSvc := &MockStorage{}
+	svc := NewService(repo, auditSvc, storageSvc)
 
 	tests := []struct {
 		name    string
@@ -154,7 +184,8 @@ func TestService_GetTimeline(t *testing.T) {
 		},
 	}
 	auditSvc := &MockAuditService{}
-	svc := NewService(repo, auditSvc)
+	storageSvc := &MockStorage{}
+	svc := NewService(repo, auditSvc, storageSvc)
 
 	tests := []struct {
 		name      string

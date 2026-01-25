@@ -17,8 +17,11 @@ type Repository interface {
 	CreateEdge(ctx context.Context, edge *EventEdge) error
 	DeleteEdge(ctx context.Context, id string) error
 	GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error)
-
 	GetGraphData(ctx context.Context, patientID string) ([]TimelineEvent, []EventEdge, error)
+
+	CreateFile(ctx context.Context, file *EventFile) error
+	GetFileByID(ctx context.Context, id string) (*EventFile, error)
+	GetFilesByEventID(ctx context.Context, eventID string) ([]EventFile, error)
 
 	Transaction(ctx context.Context, fn func(repo Repository) error) error
 }
@@ -137,6 +140,7 @@ func (r *GormRepository) GetGraphData(ctx context.Context, patientID string) ([]
 	var events []TimelineEvent
 	err := r.db.WithContext(ctx).
 		Where("patient_id = ?", patientID).
+		Preload("Files").
 		Order("timestamp DESC").
 		Find(&events).Error
 	if err != nil {
@@ -167,4 +171,27 @@ func (r *GormRepository) Transaction(ctx context.Context, fn func(repo Repositor
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return fn(&GormRepository{db: tx})
 	})
+}
+
+func (r *GormRepository) CreateFile(ctx context.Context, file *EventFile) error {
+	if err := r.db.WithContext(ctx).Create(file).Error; err != nil {
+		return fmt.Errorf("create event file: %w", err)
+	}
+	return nil
+}
+
+func (r *GormRepository) GetFileByID(ctx context.Context, id string) (*EventFile, error) {
+	var file EventFile
+	if err := r.db.WithContext(ctx).First(&file, "id = ?", id).Error; err != nil {
+		return nil, fmt.Errorf("get event file %s: %w", id, err)
+	}
+	return &file, nil
+}
+
+func (r *GormRepository) GetFilesByEventID(ctx context.Context, eventID string) ([]EventFile, error) {
+	var files []EventFile
+	if err := r.db.WithContext(ctx).Where("event_id = ?", eventID).Find(&files).Error; err != nil {
+		return nil, fmt.Errorf("get files for event %s: %w", eventID, err)
+	}
+	return files, nil
 }

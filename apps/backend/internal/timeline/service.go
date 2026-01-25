@@ -6,7 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	"io"
+
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
+	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
 )
@@ -22,6 +25,9 @@ type Service interface {
 	UnlinkEvents(ctx context.Context, edgeID string) error
 	GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error)
 	GetGraphData(ctx context.Context, patientID string) (*GraphData, error)
+
+	UploadFile(ctx context.Context, eventID string, fileName string, contentType string, reader io.Reader, size int64, wrappedDEK []byte) (*EventFile, error)
+	GetFile(ctx context.Context, fileID string) (*EventFile, io.ReadCloser, error)
 }
 
 type GraphData struct {
@@ -32,12 +38,14 @@ type GraphData struct {
 type service struct {
 	repo         Repository
 	auditService audit.Service
+	storage      storage.Storage
 }
 
-func NewService(repo Repository, auditService audit.Service) Service {
+func NewService(repo Repository, auditService audit.Service, storage storage.Storage) Service {
 	return &service{
 		repo:         repo,
 		auditService: auditService,
+		storage:      storage,
 	}
 }
 
@@ -241,4 +249,40 @@ func (s *service) GetGraphData(ctx context.Context, patientID string) (*GraphDat
 		Events: events,
 		Edges:  edges,
 	}, nil
+}
+
+func (s *service) UploadFile(ctx context.Context, eventID string, fileName string, contentType string, reader io.Reader, size int64, wrappedDEK []byte) (*EventFile, error) {
+	blobRef, err := s.storage.Put(ctx, "fleming-blobs", fileName, reader, size, contentType)
+	if err != nil {
+		return nil, fmt.Errorf("storage put: %w", err)
+	}
+
+	file := &EventFile{
+		EventID:    eventID,
+		BlobRef:    blobRef,
+		FileName:   fileName,
+		MimeType:   contentType,
+		FileSize:   size,
+		WrappedDEK: wrappedDEK,
+	}
+
+	if err := s.repo.CreateFile(ctx, file); err != nil {
+		return nil, fmt.Errorf("repo create file: %w", err)
+	}
+
+	return file, nil
+}
+
+func (s *service) GetFile(ctx context.Context, fileID string) (*EventFile, io.ReadCloser, error) {
+	file, err := s.repo.GetFileByID(ctx, fileID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("repo get file %s: %w", fileID, err)
+	}
+
+	reader, err := s.storage.Get(ctx, "fleming-blobs", file.BlobRef)
+	if err != nil {
+		return nil, nil, fmt.Errorf("storage get %s: %w", file.BlobRef, err)
+	}
+
+	return file, reader, nil
 }

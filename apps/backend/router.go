@@ -11,6 +11,7 @@ import (
 	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
 	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
 	"github.com/itspablomontes/fleming/apps/backend/internal/middleware"
+	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	"github.com/itspablomontes/fleming/apps/backend/internal/timeline"
 	"gorm.io/gorm"
 )
@@ -36,10 +37,32 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	consentRepo := consent.NewRepository(db)
 	timelineRepo := timeline.NewRepository(db)
 
+	storageEndpoint := os.Getenv("STORAGE_ENDPOINT")
+	storageAccessKey := os.Getenv("STORAGE_ACCESS_KEY")
+	storageSecretKey := os.Getenv("STORAGE_SECRET_KEY")
+	storageUseSSL := os.Getenv("STORAGE_USE_SSL") == "true"
+
+	if storageEndpoint == "" {
+		slog.Warn("STORAGE_ENDPOINT not set, using default minio:9000")
+		storageEndpoint = "localhost:9000"
+	}
+	if storageAccessKey == "" {
+		storageAccessKey = "minioadmin"
+	}
+	if storageSecretKey == "" {
+		storageSecretKey = "minioadmin"
+	}
+
+	storageService, err := storage.NewMinIOStorage(storageEndpoint, storageAccessKey, storageSecretKey, storageUseSSL)
+	if err != nil {
+		slog.Error("Failed to initialize storage service", "error", err)
+		os.Exit(1)
+	}
+
 	auditService := audit.NewService(auditRepo)
 	consentService := consent.NewService(consentRepo)
 	authService := auth.NewService(authRepo, jwtSecret, auditService)
-	timelineService := timeline.NewService(timelineRepo, auditService)
+	timelineService := timeline.NewService(timelineRepo, auditService, storageService)
 
 	authService.StartCleanup(context.Background())
 

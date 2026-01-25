@@ -16,5 +16,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		timeline.POST("/events/:id/link", h.HandleLinkEvents)
 		timeline.GET("/events/:id/related", h.HandleGetRelatedEvents)
 		timeline.DELETE("/edges/:edgeId", h.HandleUnlinkEvents)
+
+		timeline.GET("/events/:id/files/:fileId", h.HandleDownloadFile)
 	}
 }

@@ -50,7 +50,7 @@ type EventFile struct {
 	FileName   string         `json:"fileName" gorm:"type:varchar(255);not null"`
 	MimeType   string         `json:"mimeType" gorm:"type:varchar(100);not null"`
 	FileSize   int64          `json:"fileSize" gorm:"not null"`
-	WrappedDEK []byte         `json:"-" gorm:"type:bytea;not null"`
+	WrappedDEK []byte         `json:"wrappedDek,omitempty" gorm:"type:bytea;not null"`
 	Metadata   common.JSONMap `json:"metadata,omitempty" gorm:"type:jsonb"`
 	CreatedAt  time.Time      `json:"createdAt"`
 
