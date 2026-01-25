@@ -55,9 +55,11 @@ func main() {
 
 	if err := db.AutoMigrate(
 		&auth.Challenge{},
+		&auth.User{},
 		&timeline.TimelineEvent{},
 		&timeline.EventEdge{},
 		&timeline.EventFile{},
+		&timeline.EventFileAccess{},
 		&audit.AuditEntry{},
 		&consent.ConsentGrant{},
 	); err != nil {

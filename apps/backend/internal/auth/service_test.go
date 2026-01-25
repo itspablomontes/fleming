@@ -24,6 +24,7 @@ func (m *MockAuditService) VerifyIntegrity(ctx context.Context) (bool, error) {
 
 type MockRepo struct {
 	challenges map[string]*Challenge
+	users      map[string]*User
 }
 
 func (m *MockRepo) SaveChallenge(ctx context.Context, c *Challenge) error {
@@ -55,6 +56,21 @@ func (m *MockRepo) DeleteExpiredChallenges(ctx context.Context) (int64, error) {
 		}
 	}
 	return count, nil
+}
+
+func (m *MockRepo) SaveUser(ctx context.Context, u *User) error {
+	if m.users == nil {
+		m.users = make(map[string]*User)
+	}
+	m.users[u.Address] = u
+	return nil
+}
+
+func (m *MockRepo) FindUser(ctx context.Context, address string) (*User, error) {
+	if u, ok := m.users[address]; ok {
+		return u, nil
+	}
+	return nil, ErrNotFound
 }
 
 func TestService_GenerateChallenge(t *testing.T) {

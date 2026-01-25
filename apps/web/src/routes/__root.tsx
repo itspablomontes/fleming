@@ -2,6 +2,7 @@ import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/features/auth/context/auth-context";
+import { VaultProvider } from "@/features/auth/contexts/vault-context";
 
 export const Route = createRootRoute({
 	component: RootComponent,
@@ -17,8 +18,10 @@ function RootComponent() {
 
 	return (
 		<AuthProvider>
-			<Outlet />
-			<Toaster richColors position="top-right" />
+			<VaultProvider>
+				<Outlet />
+				<Toaster richColors position="top-right" />
+			</VaultProvider>
 		</AuthProvider>
 	);
 }

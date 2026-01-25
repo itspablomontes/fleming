@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import {
 	AlertTriangle,
+	ClipboardList,
 	Download,
 	Eye,
 	File,
@@ -34,6 +35,10 @@ const EVENT_ICONS: Record<TimelineEventType, LucideIcon> = {
 	[EventTypes.REFERRAL]: UserPlus,
 	[EventTypes.INSURANCE_CLAIM]: FileCheck,
 	[EventTypes.OTHER]: File,
+	[EventTypes.NOTE]: FileText,
+	[EventTypes.CONSULTATION]: Stethoscope,
+	[EventTypes.DIAGNOSIS]: ClipboardList,
+	[EventTypes.TOMBSTONE]: File,
 };
 
 interface TimelineCardProps {

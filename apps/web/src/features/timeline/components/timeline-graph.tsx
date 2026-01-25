@@ -15,7 +15,7 @@ import {
 	useEdgesState,
 	useNodesState,
 } from "@xyflow/react";
-import { useEffect, useMemo } from "react";
+import { type JSX, useEffect, useMemo, useState } from "react";
 import "@xyflow/react/dist/style.css";
 
 import type { GraphData, TimelineEvent } from "../types";
@@ -47,6 +47,7 @@ function graphDataToFlow(
 	data: GraphData,
 	onEventClick?: (event: TimelineEvent) => void,
 	selectedEventId?: string | null,
+	isCompact?: boolean,
 ): { nodes: Node<EventNodeData>[]; edges: Edge<RelationshipEdgeData>[] } {
 	// Sort events by timestamp for layout
 	const sortedEvents = [...data.events].sort(
@@ -55,16 +56,19 @@ function graphDataToFlow(
 
 	// Create nodes with automatic layout
 	const nodes: Node<EventNodeData>[] = sortedEvents.map((event, index) => {
-		// Simple grid layout: events spread horizontally with some vertical variation
-		const col = index % 4;
-		const row = Math.floor(index / 4);
+		// Compact layout for smaller screens to reduce panning
+		const columns = isCompact ? 1 : 4;
+		const col = index % columns;
+		const row = Math.floor(index / columns);
+		const columnWidth = isCompact ? 280 : 400;
+		const rowHeight = isCompact ? 220 : 280;
 
 		return {
 			id: event.id,
 			type: "eventNode",
 			position: {
-				x: col * 400 + 80,
-				y: row * 280 + 80,
+				x: col * columnWidth + 80,
+				y: row * rowHeight + 80,
 			},
 			data: {
 				event,
@@ -99,10 +103,20 @@ export function TimelineGraph({
 	data,
 	onEventClick,
 	selectedEventId,
-}: TimelineGraphProps) {
+}: TimelineGraphProps): JSX.Element {
+	const [isCompact, setIsCompact] = useState(false);
+
+	useEffect(() => {
+		const media = window.matchMedia("(max-width: 768px)");
+		const update = () => setIsCompact(media.matches);
+		update();
+		media.addEventListener("change", update);
+		return () => media.removeEventListener("change", update);
+	}, []);
+
 	const { nodes: initialNodes, edges: initialEdges } = useMemo(
-		() => graphDataToFlow(data, onEventClick, selectedEventId),
-		[data, onEventClick, selectedEventId],
+		() => graphDataToFlow(data, onEventClick, selectedEventId, isCompact),
+		[data, onEventClick, selectedEventId, isCompact],
 	);
 
 	const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -127,10 +141,11 @@ export function TimelineGraph({
 			data,
 			onEventClick,
 			selectedEventId,
+			isCompact,
 		);
 		setNodes(newNodes);
 		setEdges(newEdges);
-	}, [data, onEventClick, selectedEventId, setNodes, setEdges]);
+	}, [data, onEventClick, selectedEventId, isCompact, setNodes, setEdges]);
 
 	return (
 		<div style={{ width: "100%", height: "100%" }}>
@@ -142,8 +157,8 @@ export function TimelineGraph({
 				nodeTypes={nodeTypes}
 				edgeTypes={edgeTypes}
 				fitView
-				fitViewOptions={{ padding: 0.2 }}
-				minZoom={0.3}
+				fitViewOptions={{ padding: isCompact ? 0.1 : 0.2 }}
+				minZoom={isCompact ? 0.5 : 0.3}
 				maxZoom={2}
 				defaultEdgeOptions={{
 					type: "relationshipEdge",
@@ -170,10 +185,7 @@ export function TimelineGraph({
 							refY="7.5"
 							orient="auto"
 						>
-							<polygon
-								points="0 0, 15 7.5, 0 15"
-								fill="var(--primary)"
-							/>
+							<polygon points="0 0, 15 7.5, 0 15" fill="var(--primary)" />
 						</marker>
 					</defs>
 				</svg>

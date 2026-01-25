@@ -50,7 +50,7 @@ type EventFile struct {
 	FileName   string         `json:"fileName" gorm:"type:varchar(255);not null"`
 	MimeType   string         `json:"mimeType" gorm:"type:varchar(100);not null"`
 	FileSize   int64          `json:"fileSize" gorm:"not null"`
-	WrappedDEK []byte         `json:"-" gorm:"type:bytea;not null"`
+	WrappedDEK []byte         `json:"wrappedDek,omitempty" gorm:"type:bytea;not null"`
 	Metadata   common.JSONMap `json:"metadata,omitempty" gorm:"type:jsonb"`
 	CreatedAt  time.Time      `json:"createdAt"`
 
@@ -59,4 +59,17 @@ type EventFile struct {
 
 func (EventFile) TableName() string {
 	return "event_files"
+}
+
+type EventFileAccess struct {
+	ID        string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	FileID    string    `json:"fileId" gorm:"type:uuid;not null;index;uniqueIndex:idx_file_grantee"`
+	Grantee   string    `json:"grantee" gorm:"type:varchar(255);not null;index;uniqueIndex:idx_file_grantee"`
+	WrappedDEK []byte   `json:"wrappedDek,omitempty" gorm:"type:bytea;not null"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (EventFileAccess) TableName() string {
+	return "event_file_access"
 }

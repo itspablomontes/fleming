@@ -1,0 +1,44 @@
+---
+globs: *.go
+alwaysApply: false
+---
+# Fleming Backend Directives (Go 1.25+)
+
+> Favor clarity over cleverness. Explicitness over implicitness.
+
+## 1. Tooling & Quality
+- **Formatting**: `gofumpt -w .` and `goimports`.
+- **Linting**: `golangci-lint run --fix` (mandatory in CI).
+- **Go Version**: 1.25+ exclusively. Leverage `slog` and `errors.Join`.
+
+## 2. Naming & Structure
+- **Vertical Slicing**: Organize by feature in `internal/{feature}/`.
+- **Interfaces**: Small and descriptive (`Repository`, not `UserRepositoryer`).
+- **Constructors**: MUST use explicit `NewXxx(deps...)` functions. No globals.
+
+## 3. Database & Logic
+- **Repository Pattern**: Services depend on interfaces, never `*gorm.DB`.
+- **Context**: MUST be the first parameter in all blocking/IO calls. Respect `ctx.Done()`.
+- **Entities**: Live in `entity.go` with GORM tags.
+
+## 4. HTTP & Error Handling
+- **Thin Handlers**: Handlers translate HTTP ↔ Domain only. No logic.
+- **Error Wrapping**: Always use `%w` for context. Never ignore errors.
+- **Logging**: Use `log/slog` structured logging with `slog.InfoContext(ctx, ...)`.
+
+## 5. Concurrency
+- **No Naked Goroutines**: Tie lifetimes to context or a manager.
+- **Prefer `errgroup`**: For parallel tasks with error propagation.
+- **Mutexes**: Use `sync.RWMutex` for shared state protection.
+
+## 6. Performance & Efficiency (Go 1.25)
+- **Avoid Allocations**: Preallocate slices/maps when sizes are known.
+- **Reuse Buffers**: Use `bytes.Buffer` or `strings.Builder` for string assembly.
+- **Prefer stdlib helpers**: Use `cmp`, `slices`, `maps` instead of custom loops.
+- **Context Cause**: Use `context.WithCancelCause`/`WithTimeoutCause` for cancellation diagnostics.
+- **Structured Logging**: Use `slog` fields, avoid `fmt.Sprintf` in hot paths.
+
+## 7. Testing Strategy
+- **Table-Driven**: Default for all unit tests.
+- **Coverage**: 80%+ on domain/services.
+- **Parallel**: Use `t.Parallel()` for independent tests.

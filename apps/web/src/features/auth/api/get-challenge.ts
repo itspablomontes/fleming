@@ -12,6 +12,6 @@ export interface ChallengeResponse {
 }
 
 export const getChallenge = async (data: ChallengeRequest): Promise<string> => {
-	const res = await apiClient("/auth/challenge", { body: data });
+	const res = await apiClient("/api/auth/challenge", { body: data });
 	return res.message;
 };

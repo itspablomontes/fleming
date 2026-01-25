@@ -1,0 +1,38 @@
+---
+alwaysApply: true
+---
+
+# Fleming Core Directives
+
+> Fleming is a production-grade project for medical health history. Correctness and Privacy are non-negotiable.
+
+## 1. Zero-Tolerance Failure Modes (NEVER SHIP)
+1. **NO TODOs/FIXMEs**: If a task is incomplete, STOP and ASK. Never ship placeholders.
+2. **NO Hardcoded Secrets**: Use environment variables or DI. No trial keys or mock IDs in real paths.
+3. **NO Happy-Path Only**: All code MUST have input validation, error handling, and guard clauses.
+4. **NO Vibe-Based Code**: No magic numbers, inconsistent patterns, or context-blind copy-pasting.
+5. **NO Logic Mocks**: Mock network/external boundaries ONLY. Business logic must be real.
+
+## 2. Core Principles
+- **Privacy First**: Never log PII, secrets, or raw documents. If you don't need to store it, DON'T.
+- **Protocol-First**: `pkg/protocol/` is the source of truth. Apps depend on protocol, never the reverse.
+- **Explicit > Implicit**: Prefer readable, "boring" code over clever abstractions.
+- **Tests Ship with Logic**: 80%+ coverage for business logic is mandatory.
+
+## 3. Agentic Workflow Rules
+1. **Plan Before Executing**: Document what, why, risks, and tests.
+2. **Verify Before Completing**: Run tests and validate in runtime (browser/API).
+3. **Read Surrounding Context**: Never edit a file without understanding its neighbors.
+4. **Communicate Ambiguity**: Ask clarifying questions instead of guessing.
+
+## 4. Engineering Standards
+- **Clean Code**: Meaningful names, small functions, no dead code.
+- **SOLID**: Follow strictly. Interfaces beat "god objects".
+- **Error Handling**: Wrap all errors with context using `%w`. Never suppress errors.
+- **Security**: Sanitize all input. Use parameterized queries. Enforce HTTPS.
+
+## 5. Collaboration
+- **Conventional Commits**: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`.
+- **PRs**: Explain "Why" + "What". Link issues.
+
+> **Mantra: Correct. Secure. Readable. Then fast.**

@@ -108,6 +108,27 @@ func (s *Service) ValidateChallenge(ctx context.Context, address, signature stri
 	s.deleteChallenge(ctx, address)
 
 	slog.Info("auth successful", "address", address)
+
+	user, err := s.repo.FindUser(ctx, address)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			slog.Info("new user detected, initializing vault", "address", address)
+			saltBytes := make([]byte, 32)
+			if _, err := rand.Read(saltBytes); err != nil {
+				return "", fmt.Errorf("failed to generate salt: %w", err)
+			}
+			user = &User{
+				Address:        address,
+				EncryptionSalt: hex.EncodeToString(saltBytes),
+			}
+			if err := s.repo.SaveUser(ctx, user); err != nil {
+				return "", fmt.Errorf("failed to create user: %w", err)
+			}
+		} else {
+			return "", err
+		}
+	}
+
 	token, err := s.issueJWT(address)
 	if err != nil {
 		return "", err
@@ -145,6 +166,14 @@ func (s *Service) StartCleanup(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (s *Service) GetUserProfile(ctx context.Context, address string) (*User, error) {
+	user, err := s.repo.FindUser(ctx, address)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
 func (s *Service) issueJWT(address string) (string, error) {

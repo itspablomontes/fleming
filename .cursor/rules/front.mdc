@@ -23,6 +23,8 @@ We write **clean, maintainable, type-safe, SOLID-compliant** React code.
 | **Forms**       | TanStack Form + Zod                                 |
 | **Routing**     | TanStack Router (file-based)                        |
 | **State**       | React Query for server state, Context for DI        |
+| **Health**      | **ALWAYS** run type checks & linting in `features/` |
+
 
 ### Dark Mode Pattern
 **Always include dark mode variants** when styling components:
@@ -157,24 +159,17 @@ export const Route = createFileRoute('/timeline')({
 
 ```
 src/
-├── routes/           # File-based routing
-├── features/         # Domain features (auth, timeline, etc.)
-│   └── {feature}/
-│       ├── components/
-│       ├── hooks/
-│       ├── pages/
-│       ├── api/
-│       └── types/
-├── components/
-│   ├── ui/           # Primitives (Button, Input)
-│   └── common/       # Generic (Logo, ErrorBoundary)
-├── lib/              # Utilities, API clients
-├── hooks/            # Global hooks
-└── types/            # Global types (named files)
+├── routes/       # Typesafe routing config
+├── features/     # Feature vertical slices (auth, timeline)
+├── components/   # ui/ (primitives), common/ (shared)
+├── lib/          # webcrypto, api clients, utils
+└── hooks/        # Global hooks
 ```
 
----
-
-## Quick Mantra
-
-> **"Typesafe Routing. Biome Formatting. Composition over Configuration."**
+## 5. PR Checklist
+- [ ] **Type & Lint Check**: Run `biome check --apply .` and ensure no warnings/errors in `features/`.
+- [ ] No `any`.
+- [ ] Dark mode variants included.
+- [ ] `pnpm audit` passes.
+- [ ] No `console.log` of sensitive data.
+- [ ] Zod validation on inputs.

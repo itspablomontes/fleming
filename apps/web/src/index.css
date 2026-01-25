@@ -474,3 +474,8 @@
   display: none;
   /* Chrome, Safari and Opera */
 }
+
+/* Mobile safe-area padding helpers */
+.safe-area-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 1.5rem);
+}

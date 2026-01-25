@@ -47,6 +47,7 @@ const ICON_MAP: Record<
 	referral: UserPlus,
 	insurance_claim: FileCheck,
 	other: File,
+	tombstone: File,
 };
 
 interface TimelineEventNodeProps {
