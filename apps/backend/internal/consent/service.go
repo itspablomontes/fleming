@@ -6,6 +6,9 @@ import (
 	"slices"
 	"time"
 
+	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
+	"github.com/itspablomontes/fleming/apps/backend/internal/common"
+	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/consent"
 )
 
@@ -20,12 +23,16 @@ type Service interface {
 }
 
 type service struct {
-	repo Repository
+	repo         Repository
+	auditService audit.Service
 }
 
 // NewService creates a new consent service.
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, auditService audit.Service) Service {
+	return &service{
+		repo:         repo,
+		auditService: auditService,
+	}
 }
 
 func (s *service) RequestConsent(ctx context.Context, grantor, grantee, reason string, permissions []string, expiresAt time.Time) (*ConsentGrant, error) {
@@ -41,6 +48,13 @@ func (s *service) RequestConsent(ctx context.Context, grantor, grantee, reason s
 	if err := s.repo.Create(ctx, grant); err != nil {
 		return nil, err
 	}
+
+	metadata := common.JSONMap{
+		"grantee":     grant.Grantee,
+		"permissions": grant.Permissions,
+		"expiresAt":   grant.ExpiresAt,
+	}
+	_ = s.auditService.Record(ctx, grantor, protocol.ActionConsentRequest, protocol.ResourceConsent, grant.ID, metadata)
 	return grant, nil
 }
 
@@ -55,7 +69,12 @@ func (s *service) ApproveConsent(ctx context.Context, grantID string) error {
 	}
 
 	grant.State = consent.StateApproved
-	return s.repo.Update(ctx, grant)
+	if err := s.repo.Update(ctx, grant); err != nil {
+		return err
+	}
+
+	_ = s.auditService.Record(ctx, grant.Grantor, protocol.ActionConsentApprove, protocol.ResourceConsent, grant.ID, nil)
+	return nil
 }
 
 func (s *service) DenyConsent(ctx context.Context, grantID string) error {
@@ -69,7 +88,12 @@ func (s *service) DenyConsent(ctx context.Context, grantID string) error {
 	}
 
 	grant.State = consent.StateDenied
-	return s.repo.Update(ctx, grant)
+	if err := s.repo.Update(ctx, grant); err != nil {
+		return err
+	}
+
+	_ = s.auditService.Record(ctx, grant.Grantor, protocol.ActionConsentDeny, protocol.ResourceConsent, grant.ID, nil)
+	return nil
 }
 
 func (s *service) RevokeConsent(ctx context.Context, grantID string) error {
@@ -83,7 +107,12 @@ func (s *service) RevokeConsent(ctx context.Context, grantID string) error {
 	}
 
 	grant.State = consent.StateRevoked
-	return s.repo.Update(ctx, grant)
+	if err := s.repo.Update(ctx, grant); err != nil {
+		return err
+	}
+
+	_ = s.auditService.Record(ctx, grant.Grantor, protocol.ActionConsentRevoke, protocol.ResourceConsent, grant.ID, nil)
+	return nil
 }
 
 func (s *service) GetActiveGrants(ctx context.Context, grantee string) ([]ConsentGrant, error) {
@@ -119,6 +148,9 @@ func (s *service) CheckPermission(ctx context.Context, grantor, grantee string, 
 	}
 
 	if !latest.ExpiresAt.IsZero() && latest.ExpiresAt.Before(time.Now()) {
+		latest.State = consent.StateExpired
+		_ = s.repo.Update(ctx, latest)
+		_ = s.auditService.Record(ctx, latest.Grantor, protocol.ActionConsentExpire, protocol.ResourceConsent, latest.ID, nil)
 		return false, nil
 	}
 

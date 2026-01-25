@@ -5,16 +5,20 @@ import type { EthAddress } from "@/types/ethereum";
  */
 
 export const AuditAction = {
-	ConsentRequested: "consent_requested",
-	ConsentGranted: "consent_granted",
-	ConsentDenied: "consent_denied",
-	ConsentRevoked: "consent_revoked",
-	ConsentExpired: "consent_expired",
-	RecordUploaded: "record_uploaded",
-	RecordViewed: "record_viewed",
-	RecordDownloaded: "record_downloaded",
-	UserAuthenticated: "user_authenticated",
-	UserLoggedOut: "user_logged_out",
+	ConsentRequested: "consent.request",
+	ConsentGranted: "consent.approve",
+	ConsentDenied: "consent.deny",
+	ConsentRevoked: "consent.revoke",
+	ConsentExpired: "consent.expire",
+	RecordCreated: "create",
+	RecordRead: "read",
+	RecordUpdated: "update",
+	RecordDeleted: "delete",
+	FileUploaded: "file.upload",
+	FileDownloaded: "file.download",
+	FileShared: "file.share",
+	UserAuthenticated: "auth.login",
+	UserLoggedOut: "auth.logout",
 } as const;
 
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
@@ -22,7 +26,8 @@ export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
 export const AuditTargetType = {
 	Consent: "consent",
 	Event: "event",
-	User: "user",
+	File: "file",
+	Session: "session",
 } as const;
 
 export type AuditTargetType =
@@ -40,12 +45,23 @@ export type AuditAnchorStatus =
 export interface AuditLogEntry {
 	id: string;
 	action: AuditAction;
-	actorId: string;
-	actorAddress: EthAddress;
-	targetId?: string;
-	targetType?: AuditTargetType;
+	actor: EthAddress;
+	resourceId: string;
+	resourceType: AuditTargetType;
 	timestamp: Date;
 	metadata?: Record<string, unknown>;
+	hash?: string;
+	previousHash?: string;
 	anchoredTxHash?: string;
-	anchorStatus: AuditAnchorStatus;
+	anchorStatus?: AuditAnchorStatus;
+}
+
+export interface MerkleProofStep {
+	hash: string;
+	isLeft: boolean;
+}
+
+export interface MerkleProof {
+	entryHash: string;
+	steps: MerkleProofStep[];
 }
