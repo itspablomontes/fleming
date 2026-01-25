@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { Ban, CheckCircle, Clock, Loader2, Timer, XCircle } from "lucide-react";
+import { Ban, CheckCircle, Clock, Timer, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { ConsentState } from "@/features/consent/types";
 import { CONSENT_STATE_LABELS } from "@/features/consent/types";
@@ -9,22 +9,20 @@ const consentBadgeVariants = cva("inline-flex items-center gap-1.5", {
 	variants: {
 		state: {
 			requested: "bg-warning/15 text-(--warning-text) border-warning/30",
-			pending: "bg-warning/15 text-(--warning-text) border-warning/30",
-			granted: "bg-success/15 text-(--success-text) border-success/30",
+			approved: "bg-success/15 text-(--success-text) border-success/30",
 			denied: "bg-muted text-muted-foreground border-border",
 			revoked: "bg-destructive/15 text-destructive border-destructive/30",
 			expired: "bg-muted text-muted-foreground border-border",
 		},
 	},
 	defaultVariants: {
-		state: "pending",
+		state: "requested",
 	},
 });
 
 const stateIcons: Record<ConsentState, React.ElementType> = {
 	requested: Clock,
-	pending: Loader2,
-	granted: CheckCircle,
+	approved: CheckCircle,
 	denied: XCircle,
 	revoked: Ban,
 	expired: Timer,
@@ -47,17 +45,13 @@ export function ConsentBadge({
 }: ConsentBadgeProps) {
 	const Icon = stateIcons[state];
 	const label = CONSENT_STATE_LABELS[state];
-	const isPending = state === "pending";
 
 	return (
 		<Badge
 			variant="outline"
 			className={cn(consentBadgeVariants({ state }), "dark", className)}
 		>
-			<Icon
-				className={cn("h-3.5 w-3.5", isPending && "animate-spin")}
-				aria-hidden="true"
-			/>
+			<Icon className="h-3.5 w-3.5" aria-hidden="true" />
 			{showLabel && <span>{label}</span>}
 			<span className="sr-only">{label}</span>
 		</Badge>
