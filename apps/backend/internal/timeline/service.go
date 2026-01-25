@@ -3,12 +3,12 @@ package timeline
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
-	"io"
-
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
+	"github.com/itspablomontes/fleming/apps/backend/internal/common"
 	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
@@ -26,8 +26,15 @@ type Service interface {
 	GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error)
 	GetGraphData(ctx context.Context, patientID string) (*GraphData, error)
 
-	UploadFile(ctx context.Context, eventID string, fileName string, contentType string, reader io.Reader, size int64, wrappedDEK []byte) (*EventFile, error)
+	UploadFile(ctx context.Context, eventID string, fileName string, contentType string, reader io.Reader, size int64, wrappedDEK []byte, metadata common.JSONMap) (*EventFile, error)
 	GetFile(ctx context.Context, fileID string) (*EventFile, io.ReadCloser, error)
+
+	StartMultipartUpload(ctx context.Context, eventID string, fileName string, contentType string) (string, string, error)
+	UploadMultipartPart(ctx context.Context, objectName string, uploadID string, partNumber int, reader io.Reader, size int64) (string, error)
+	CompleteMultipartUpload(ctx context.Context, eventID string, objectName string, uploadID string, parts []storage.Part, fileName string, contentType string, size int64, wrappedDEK []byte, metadata common.JSONMap) (*EventFile, error)
+
+	GetFileKey(ctx context.Context, fileID string, actor string, patientID string) ([]byte, error)
+	SaveFileAccess(ctx context.Context, fileID string, grantee string, wrappedDEK []byte) error
 }
 
 type GraphData struct {
@@ -251,7 +258,7 @@ func (s *service) GetGraphData(ctx context.Context, patientID string) (*GraphDat
 	}, nil
 }
 
-func (s *service) UploadFile(ctx context.Context, eventID string, fileName string, contentType string, reader io.Reader, size int64, wrappedDEK []byte) (*EventFile, error) {
+func (s *service) UploadFile(ctx context.Context, eventID string, fileName string, contentType string, reader io.Reader, size int64, wrappedDEK []byte, metadata common.JSONMap) (*EventFile, error) {
 	blobRef, err := s.storage.Put(ctx, "fleming-blobs", fileName, reader, size, contentType)
 	if err != nil {
 		return nil, fmt.Errorf("storage put: %w", err)
@@ -264,6 +271,7 @@ func (s *service) UploadFile(ctx context.Context, eventID string, fileName strin
 		MimeType:   contentType,
 		FileSize:   size,
 		WrappedDEK: wrappedDEK,
+		Metadata:   metadata,
 	}
 
 	if err := s.repo.CreateFile(ctx, file); err != nil {
@@ -285,4 +293,77 @@ func (s *service) GetFile(ctx context.Context, fileID string) (*EventFile, io.Re
 	}
 
 	return file, reader, nil
+}
+
+func (s *service) StartMultipartUpload(ctx context.Context, eventID string, fileName string, contentType string) (string, string, error) {
+	objectName := fmt.Sprintf("%s/%s", eventID, fileName)
+	uploadID, err := s.storage.CreateMultipartUpload(ctx, "fleming-blobs", objectName, contentType)
+	if err != nil {
+		return "", "", err
+	}
+	return uploadID, objectName, nil
+}
+
+func (s *service) UploadMultipartPart(ctx context.Context, objectName string, uploadID string, partNumber int, reader io.Reader, size int64) (string, error) {
+	return s.storage.UploadPart(ctx, "fleming-blobs", objectName, uploadID, partNumber, reader, size)
+}
+
+func (s *service) CompleteMultipartUpload(
+	ctx context.Context,
+	eventID string,
+	objectName string,
+	uploadID string,
+	parts []storage.Part,
+	fileName string,
+	contentType string,
+	size int64,
+	wrappedDEK []byte,
+	metadata common.JSONMap,
+) (*EventFile, error) {
+	blobRef, err := s.storage.CompleteMultipartUpload(ctx, "fleming-blobs", objectName, uploadID, parts)
+	if err != nil {
+		return nil, err
+	}
+
+	file := &EventFile{
+		EventID:    eventID,
+		BlobRef:    blobRef,
+		FileName:   fileName,
+		MimeType:   contentType,
+		FileSize:   size,
+		WrappedDEK: wrappedDEK,
+		Metadata:   metadata,
+	}
+
+	if err := s.repo.CreateFile(ctx, file); err != nil {
+		return nil, fmt.Errorf("repo create file: %w", err)
+	}
+
+	return file, nil
+}
+
+func (s *service) GetFileKey(ctx context.Context, fileID string, actor string, patientID string) ([]byte, error) {
+	file, err := s.repo.GetFileByID(ctx, fileID)
+	if err != nil {
+		return nil, err
+	}
+
+	if actor == patientID {
+		return file.WrappedDEK, nil
+	}
+
+	access, err := s.repo.GetFileAccess(ctx, fileID, actor)
+	if err != nil {
+		return nil, err
+	}
+	return access.WrappedDEK, nil
+}
+
+func (s *service) SaveFileAccess(ctx context.Context, fileID string, grantee string, wrappedDEK []byte) error {
+	access := &EventFileAccess{
+		FileID:    fileID,
+		Grantee:   grantee,
+		WrappedDEK: wrappedDEK,
+	}
+	return s.repo.UpsertFileAccess(ctx, access)
 }

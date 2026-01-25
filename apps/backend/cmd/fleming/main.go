@@ -59,6 +59,7 @@ func main() {
 		&timeline.TimelineEvent{},
 		&timeline.EventEdge{},
 		&timeline.EventFile{},
+		&timeline.EventFileAccess{},
 		&audit.AuditEntry{},
 		&consent.ConsentGrant{},
 	); err != nil {

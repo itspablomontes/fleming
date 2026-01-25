@@ -9,6 +9,7 @@ import (
 
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
 	"github.com/itspablomontes/fleming/apps/backend/internal/common"
+	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
 )
@@ -38,6 +39,18 @@ func (m *MockStorage) Delete(ctx context.Context, bucketName, objectName string)
 }
 func (m *MockStorage) GetURL(ctx context.Context, bucketName, objectName string) (string, error) {
 	return "http://localhost:9000/" + objectName, nil
+}
+func (m *MockStorage) CreateMultipartUpload(ctx context.Context, bucketName, objectName, contentType string) (string, error) {
+	return "upload-id", nil
+}
+func (m *MockStorage) UploadPart(ctx context.Context, bucketName, objectName, uploadID string, partNumber int, reader io.Reader, objectSize int64) (string, error) {
+	return "etag", nil
+}
+func (m *MockStorage) CompleteMultipartUpload(ctx context.Context, bucketName, objectName, uploadID string, parts []storage.Part) (string, error) {
+	return objectName, nil
+}
+func (m *MockStorage) AbortMultipartUpload(ctx context.Context, bucketName, objectName, uploadID string) error {
+	return nil
 }
 
 type MockRepo struct {
@@ -131,6 +144,12 @@ func (m *MockRepo) GetFileByID(ctx context.Context, id string) (*EventFile, erro
 }
 
 func (m *MockRepo) GetFilesByEventID(ctx context.Context, eventID string) ([]EventFile, error) {
+	return nil, nil
+}
+func (m *MockRepo) UpsertFileAccess(ctx context.Context, access *EventFileAccess) error {
+	return nil
+}
+func (m *MockRepo) GetFileAccess(ctx context.Context, fileID string, grantee string) (*EventFileAccess, error) {
 	return nil, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Repository interface {
@@ -22,6 +23,8 @@ type Repository interface {
 	CreateFile(ctx context.Context, file *EventFile) error
 	GetFileByID(ctx context.Context, id string) (*EventFile, error)
 	GetFilesByEventID(ctx context.Context, eventID string) ([]EventFile, error)
+	UpsertFileAccess(ctx context.Context, access *EventFileAccess) error
+	GetFileAccess(ctx context.Context, fileID string, grantee string) (*EventFileAccess, error)
 
 	Transaction(ctx context.Context, fn func(repo Repository) error) error
 }
@@ -194,4 +197,24 @@ func (r *GormRepository) GetFilesByEventID(ctx context.Context, eventID string) 
 		return nil, fmt.Errorf("get files for event %s: %w", eventID, err)
 	}
 	return files, nil
+}
+
+func (r *GormRepository) UpsertFileAccess(ctx context.Context, access *EventFileAccess) error {
+	if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "file_id"}, {Name: "grantee"}},
+		DoUpdates: clause.AssignmentColumns([]string{"wrapped_dek", "updated_at"}),
+	}).Create(access).Error; err != nil {
+		return fmt.Errorf("upsert file access: %w", err)
+	}
+	return nil
+}
+
+func (r *GormRepository) GetFileAccess(ctx context.Context, fileID string, grantee string) (*EventFileAccess, error) {
+	var access EventFileAccess
+	if err := r.db.WithContext(ctx).
+		Where("file_id = ? AND grantee = ?", fileID, grantee).
+		First(&access).Error; err != nil {
+		return nil, fmt.Errorf("get file access for %s: %w", fileID, err)
+	}
+	return &access, nil
 }

@@ -2,15 +2,17 @@ package timeline
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
 	"io"
-	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	"github.com/itspablomontes/fleming/apps/backend/internal/common"
+	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
@@ -147,6 +149,7 @@ func (h *Handler) HandleAddEvent(c *gin.Context) {
 			file,
 			header.Size,
 			wrappedKey,
+			nil,
 		)
 		if err != nil {
 			slog.Warn("Failed to upload attached file", "error", err, "eventId", event.ID)
@@ -173,6 +176,10 @@ func (h *Handler) HandleDownloadFile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 		return
 	}
+	if file.EventID != c.Param("id") {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
 	defer reader.Close()
 
 	c.Header("Content-Disposition", "attachment; filename="+file.FileName)
@@ -182,6 +189,284 @@ func (h *Handler) HandleDownloadFile(c *gin.Context) {
 	if _, err := io.Copy(c.Writer, reader); err != nil {
 		slog.Error("failed to pipe file content", "error", err)
 	}
+}
+
+type MultipartStartRequest struct {
+	FileName    string `json:"fileName" binding:"required"`
+	MimeType    string `json:"mimeType" binding:"required"`
+}
+
+type MultipartStartResponse struct {
+	UploadID   string `json:"uploadId"`
+	ObjectName string `json:"objectName"`
+}
+
+func (h *Handler) HandleStartMultipartUpload(c *gin.Context) {
+	addressVal, exists := c.Get("user_address")
+	address, ok := addressVal.(string)
+	if !exists || !ok || address == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	eventID := c.Param("id")
+	if eventID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "event ID is required"})
+		return
+	}
+
+	event, err := h.service.GetEvent(c.Request.Context(), eventID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+		return
+	}
+	if event.PatientID != address {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only the event owner can upload files"})
+		return
+	}
+
+	var req MultipartStartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	uploadID, objectName, err := h.service.StartMultipartUpload(c.Request.Context(), eventID, req.FileName, req.MimeType)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start multipart upload"})
+		return
+	}
+
+	c.JSON(http.StatusOK, MultipartStartResponse{
+		UploadID:   uploadID,
+		ObjectName: objectName,
+	})
+}
+
+type MultipartPartResponse struct {
+	ETag string `json:"etag"`
+}
+
+func (h *Handler) HandleUploadMultipartPart(c *gin.Context) {
+	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse form data"})
+		return
+	}
+
+	uploadID := c.Request.FormValue("uploadId")
+	objectName := c.Request.FormValue("objectName")
+	partNumberStr := c.Request.FormValue("partNumber")
+	if uploadID == "" || objectName == "" || partNumberStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "uploadId, objectName, and partNumber are required"})
+		return
+	}
+
+	partNumber, err := strconv.Atoi(partNumberStr)
+	if err != nil || partNumber < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid part number"})
+		return
+	}
+
+	file, header, err := c.Request.FormFile("part")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing part"})
+		return
+	}
+	defer file.Close()
+
+	etag, err := h.service.UploadMultipartPart(c.Request.Context(), objectName, uploadID, partNumber, file, header.Size)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload part"})
+		return
+	}
+
+	c.JSON(http.StatusOK, MultipartPartResponse{ETag: etag})
+}
+
+type MultipartPart struct {
+	PartNumber int    `json:"partNumber"`
+	ETag       string `json:"etag"`
+}
+
+type MultipartCompleteRequest struct {
+	UploadID   string         `json:"uploadId" binding:"required"`
+	ObjectName string         `json:"objectName" binding:"required"`
+	FileName   string         `json:"fileName" binding:"required"`
+	MimeType   string         `json:"mimeType" binding:"required"`
+	FileSize   int64          `json:"fileSize" binding:"required"`
+	WrappedKey string         `json:"wrappedKey" binding:"required"`
+	ChunkSize  int64          `json:"chunkSize" binding:"required"`
+	TotalSize  int64          `json:"totalSize" binding:"required"`
+	IvLength   int            `json:"ivLength" binding:"required"`
+	Parts      []MultipartPart `json:"parts" binding:"required"`
+}
+
+func (h *Handler) HandleCompleteMultipartUpload(c *gin.Context) {
+	addressVal, exists := c.Get("user_address")
+	address, ok := addressVal.(string)
+	if !exists || !ok || address == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	eventID := c.Param("id")
+	if eventID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "event ID is required"})
+		return
+	}
+
+	event, err := h.service.GetEvent(c.Request.Context(), eventID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+		return
+	}
+	if event.PatientID != address {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only the event owner can upload files"})
+		return
+	}
+
+	var req MultipartCompleteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	wrappedKey, err := common.HexToBytes(req.WrappedKey)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid wrapped key"})
+		return
+	}
+
+	parts := make([]storage.Part, 0, len(req.Parts))
+	for _, part := range req.Parts {
+		if part.PartNumber < 1 || part.ETag == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid parts list"})
+			return
+		}
+		parts = append(parts, storage.Part{Number: part.PartNumber, ETag: part.ETag})
+	}
+	sort.Slice(parts, func(i, j int) bool {
+		return parts[i].Number < parts[j].Number
+	})
+
+	metadata := common.JSONMap{
+		"isMultipart": true,
+		"chunkSize":   req.ChunkSize,
+		"totalSize":   req.TotalSize,
+		"ivLength":    req.IvLength,
+	}
+
+	file, err := h.service.CompleteMultipartUpload(
+		c.Request.Context(),
+		eventID,
+		req.ObjectName,
+		req.UploadID,
+		parts,
+		req.FileName,
+		req.MimeType,
+		req.FileSize,
+		wrappedKey,
+		metadata,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to complete multipart upload"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"file":    file,
+	})
+}
+
+type ShareFileRequest struct {
+	Grantee    string `json:"grantee" binding:"required"`
+	WrappedKey string `json:"wrappedKey" binding:"required"`
+}
+
+func (h *Handler) HandleShareFile(c *gin.Context) {
+	addressVal, exists := c.Get("user_address")
+	address, ok := addressVal.(string)
+	if !exists || !ok || address == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	eventID := c.Param("id")
+	fileID := c.Param("fileId")
+	if eventID == "" || fileID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "event ID and file ID are required"})
+		return
+	}
+
+	event, err := h.service.GetEvent(c.Request.Context(), eventID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+		return
+	}
+	if event.PatientID != address {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only the event owner can share files"})
+		return
+	}
+
+	var req ShareFileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	wrappedKey, err := common.HexToBytes(req.WrappedKey)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid wrapped key"})
+		return
+	}
+
+	if err := h.service.SaveFileAccess(c.Request.Context(), fileID, req.Grantee, wrappedKey); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save file access"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *Handler) HandleGetFileKey(c *gin.Context) {
+	addressVal, exists := c.Get("user_address")
+	address, ok := addressVal.(string)
+	if !exists || !ok || address == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	eventID := c.Param("id")
+	fileID := c.Param("fileId")
+	if eventID == "" || fileID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "event ID and file ID are required"})
+		return
+	}
+
+	targetVal, _ := c.Get("target_patient")
+	targetPatient, _ := targetVal.(string)
+	if targetPatient == "" {
+		targetPatient = address
+	}
+
+	event, err := h.service.GetEvent(c.Request.Context(), eventID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+		return
+	}
+	if event.PatientID != targetPatient {
+		c.JSON(http.StatusForbidden, gin.H{"error": "invalid patient context"})
+		return
+	}
+
+	key, err := h.service.GetFileKey(c.Request.Context(), fileID, address, targetPatient)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "key not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"wrappedKey": common.BytesToHex(key)})
 }
 
 // HandleCorrectEvent implements the "Edit" logic using the Append-Only flow.

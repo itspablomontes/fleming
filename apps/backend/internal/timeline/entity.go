@@ -60,3 +60,16 @@ type EventFile struct {
 func (EventFile) TableName() string {
 	return "event_files"
 }
+
+type EventFileAccess struct {
+	ID        string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	FileID    string    `json:"fileId" gorm:"type:uuid;not null;index;uniqueIndex:idx_file_grantee"`
+	Grantee   string    `json:"grantee" gorm:"type:varchar(255);not null;index;uniqueIndex:idx_file_grantee"`
+	WrappedDEK []byte   `json:"wrappedDek,omitempty" gorm:"type:bytea;not null"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (EventFileAccess) TableName() string {
+	return "event_file_access"
+}
