@@ -107,8 +107,16 @@ func (h *Handler) HandleMe(c *gin.Context) {
 		return
 	}
 
+	user, err := h.service.GetUserProfile(c.Request.Context(), address)
+	if err != nil {
+		slog.Error("failed to fetch user profile", "address", address, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user profile"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"address": address,
-		"status":  "authenticated",
+		"address":        address,
+		"status":         "authenticated",
+		"encryptionSalt": user.EncryptionSalt,
 	})
 }
