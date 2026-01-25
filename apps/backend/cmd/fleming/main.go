@@ -61,6 +61,7 @@ func main() {
 		&timeline.EventFile{},
 		&timeline.EventFileAccess{},
 		&audit.AuditEntry{},
+		&audit.AuditBatch{},
 		&consent.ConsentGrant{},
 	); err != nil {
 		slog.Error("failed to auto-migrate schema", "error", err)

@@ -60,7 +60,7 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	}
 
 	auditService := audit.NewService(auditRepo)
-	consentService := consent.NewService(consentRepo)
+	consentService := consent.NewService(consentRepo, auditService)
 	authService := auth.NewService(authRepo, jwtSecret, auditService)
 	timelineService := timeline.NewService(timelineRepo, auditService, storageService)
 
