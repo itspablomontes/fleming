@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -84,12 +85,16 @@ func (m Metadata) GetInt(key string) int {
 	return 0
 }
 
+// Set returns a new Metadata instance with the key-value pair added.
+// This ensures immutability - the original Metadata is not modified.
 func (m Metadata) Set(key string, value any) Metadata {
-	if m == nil {
-		m = make(Metadata)
-	}
-	m[key] = value
-	return m
+	newMeta := make(Metadata)
+
+	maps.Copy(newMeta, m)
+
+	newMeta[key] = value
+
+	return newMeta
 }
 
 type Timestamp struct {
