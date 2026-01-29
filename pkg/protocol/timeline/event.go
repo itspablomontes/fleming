@@ -3,7 +3,6 @@
 package timeline
 
 import (
-	"slices"
 	"time"
 
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
@@ -12,6 +11,7 @@ import (
 type EventType string
 
 const (
+	// Medical events
 	EventConsultation   EventType = "consultation"
 	EventDiagnosis      EventType = "diagnosis"
 	EventPrescription   EventType = "prescription"
@@ -27,20 +27,24 @@ const (
 	EventInsuranceClaim EventType = "insurance_claim"
 	EventTombstone      EventType = "tombstone"
 	EventOther          EventType = "other"
+
+	// Longevity/Biohacking specific
+	EventMedication   EventType = "medication"   // Active medication (vs prescription order)
+	EventSupplement   EventType = "supplement"   // Supplements (NAD+, NMN, etc.)
+	EventBiometric    EventType = "biometric"    // Wearable data (HRV, sleep, etc.)
+	EventIntervention EventType = "intervention" // Longevity interventions (rapamycin protocol, etc.)
+
+	// Medical history
+	EventFamilyHistory EventType = "family_history" // Family health history
+	EventSocialHistory EventType = "social_history" // Social health factors
+	EventDocument      EventType = "document"       // General documents
+
+	// Alias for backward compatibility
+	EventVital EventType = "vital" // Alias for vital_signs
 )
 
-func ValidEventTypes() []EventType {
-	return []EventType{
-		EventConsultation, EventDiagnosis, EventPrescription,
-		EventProcedure, EventLabResult, EventImaging,
-		EventNote, EventVaccination, EventAllergy,
-		EventVisitNote, EventVitalSigns, EventReferral,
-		EventInsuranceClaim, EventTombstone, EventOther,
-	}
-}
-
 func (et EventType) IsValid() bool {
-	return slices.Contains(ValidEventTypes(), et)
+	return GetEventTypeRegistry().IsValid(et)
 }
 
 type Event struct {
@@ -62,9 +66,11 @@ type Event struct {
 
 	Metadata types.Metadata `json:"metadata,omitempty"`
 
-	CreatedAt time.Time `json:"createdAt,omitempty"`
+	SchemaVersion string `json:"schemaVersion,omitempty"` // Protocol schema version (e.g., "timeline.v1")
 
-	UpdatedAt time.Time `json:"updatedAt,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 func (e *Event) Validate() error {

@@ -12,9 +12,34 @@ func TestEventType_IsValid(t *testing.T) {
 		et   EventType
 		want bool
 	}{
+		// Medical events
 		{EventConsultation, true},
 		{EventDiagnosis, true},
+		{EventPrescription, true},
+		{EventProcedure, true},
 		{EventLabResult, true},
+		{EventImaging, true},
+		{EventNote, true},
+		{EventVaccination, true},
+		{EventAllergy, true},
+		{EventVisitNote, true},
+		{EventVitalSigns, true},
+		{EventReferral, true},
+		{EventInsuranceClaim, true},
+		{EventTombstone, true},
+		{EventOther, true},
+		// Longevity/Biohacking
+		{EventMedication, true},
+		{EventSupplement, true},
+		{EventBiometric, true},
+		{EventIntervention, true},
+		// Medical history
+		{EventFamilyHistory, true},
+		{EventSocialHistory, true},
+		{EventDocument, true},
+		// Alias
+		{EventVital, true},
+		// Invalid
 		{"unknown", false},
 		{"", false},
 	}

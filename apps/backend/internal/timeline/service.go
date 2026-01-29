@@ -12,15 +12,25 @@ import (
 	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
+	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
 type Service interface {
+	// Protocol-compliant methods (preferred)
+	CreateEvent(ctx context.Context, event *timeline.Event) error
+	GetEventByID(ctx context.Context, id types.ID) (*timeline.Event, error)
+	GetTimelineForPatient(ctx context.Context, patientID types.WalletAddress) ([]timeline.Event, error)
+	UpdateEventProtocol(ctx context.Context, event *timeline.Event) error
+	DeleteEventByID(ctx context.Context, id types.ID) error
+	LinkEventsProtocol(ctx context.Context, fromID, toID types.ID, relType timeline.RelationshipType) (*timeline.Edge, error)
+	UnlinkEventsByID(ctx context.Context, edgeID types.ID) error
+
+	// Legacy methods returning backend types (for backward compatibility with handlers)
 	GetTimeline(ctx context.Context, patientID string) ([]TimelineEvent, error)
 	GetEvent(ctx context.Context, id string) (*TimelineEvent, error)
 	AddEvent(ctx context.Context, event *TimelineEvent) error
 	UpdateEvent(ctx context.Context, event *TimelineEvent) error
 	DeleteEvent(ctx context.Context, id string) error
-
 	LinkEvents(ctx context.Context, fromID, toID string, relType timeline.RelationshipType) (*EventEdge, error)
 	UnlinkEvents(ctx context.Context, edgeID string) error
 	GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error)
@@ -37,11 +47,6 @@ type Service interface {
 	SaveFileAccess(ctx context.Context, fileID string, grantee string, wrappedDEK []byte) error
 }
 
-type GraphData struct {
-	Events []TimelineEvent `json:"events"`
-	Edges  []EventEdge     `json:"edges"`
-}
-
 type service struct {
 	repo         Repository
 	auditService audit.Service
@@ -56,25 +61,51 @@ func NewService(repo Repository, auditService audit.Service, storage storage.Sto
 	}
 }
 
-// GetTimeline returns active events for a patient, filtering superseded ones.
-func (s *service) GetTimeline(ctx context.Context, patientID string) ([]TimelineEvent, error) {
-	allEvents, err := s.repo.GetByPatientID(ctx, patientID)
+// CreateEvent implements protocol-compliant event creation.
+func (s *service) CreateEvent(ctx context.Context, event *timeline.Event) error {
+	if err := s.repo.CreateEvent(ctx, event); err != nil {
+		return fmt.Errorf("create event: %w", err)
+	}
+
+	// Record action
+	_ = s.auditService.Record(ctx, event.PatientID.String(), protocol.ActionCreate, protocol.ResourceEvent, event.ID.String(), nil)
+
+	return nil
+}
+
+// GetEventByID implements protocol-compliant event retrieval.
+func (s *service) GetEventByID(ctx context.Context, id types.ID) (*timeline.Event, error) {
+	event, err := s.repo.GetEvent(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get event %s: %w", id, err)
+	}
+	return event, nil
+}
+
+// GetTimelineForPatient implements protocol-compliant timeline retrieval.
+func (s *service) GetTimelineForPatient(ctx context.Context, patientID types.WalletAddress) ([]timeline.Event, error) {
+	allEvents, err := s.repo.GetTimeline(ctx, patientID)
 	if err != nil {
 		return nil, fmt.Errorf("get timeline for patient %s: %w", patientID, err)
 	}
 
-	replacedIDs := make(map[string]bool)
+	// Filter replaced events and tombstones
+	replacedIDs := make(map[types.ID]bool)
 	for _, evt := range allEvents {
-		for _, edge := range evt.IncomingEdges {
-			if edge.RelationshipType == timeline.RelReplaces {
-				replacedIDs[evt.ID] = true
+		// Check if this event is replaced by querying related events
+		_, edges, err := s.repo.GetRelated(ctx, evt.ID, 1)
+		if err == nil {
+			for _, edge := range edges {
+				if edge.Type == timeline.RelReplaces && edge.ToID == evt.ID {
+					replacedIDs[evt.ID] = true
+					break
+				}
 			}
 		}
 	}
 
-	activeEvents := make([]TimelineEvent, 0, len(allEvents))
+	activeEvents := make([]timeline.Event, 0, len(allEvents))
 	for _, evt := range allEvents {
-		// Filter replaced events and tombstones.
 		if !replacedIDs[evt.ID] && evt.Type != timeline.EventTombstone {
 			activeEvents = append(activeEvents, evt)
 		}
@@ -83,66 +114,95 @@ func (s *service) GetTimeline(ctx context.Context, patientID string) ([]Timeline
 	return activeEvents, nil
 }
 
+// Legacy methods for backward compatibility
+
+// GetTimeline returns active events for a patient, filtering superseded ones.
+func (s *service) GetTimeline(ctx context.Context, patientID string) ([]TimelineEvent, error) {
+	addr, err := types.NewWalletAddress(patientID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid patient ID: %w", err)
+	}
+
+	events, err := s.GetTimelineForPatient(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	entities := make([]TimelineEvent, len(events))
+	for i, e := range events {
+		entities[i] = *ToTimelineEvent(&e)
+	}
+	return entities, nil
+}
+
 // GetEvent retrieves a specific event.
 func (s *service) GetEvent(ctx context.Context, id string) (*TimelineEvent, error) {
-	event, err := s.repo.GetByID(ctx, id)
+	eventID, err := types.NewID(id)
 	if err != nil {
-		return nil, fmt.Errorf("get event %s: %w", id, err)
+		return nil, fmt.Errorf("invalid ID: %w", err)
 	}
-	return event, nil
+
+	event, err := s.GetEventByID(ctx, eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	return ToTimelineEvent(event), nil
 }
 
-// AddEvent persists a new event.
+// AddEvent persists a new event (legacy method).
 func (s *service) AddEvent(ctx context.Context, event *TimelineEvent) error {
-	if event.PatientID == "" {
-		return fmt.Errorf("add event: patient id required")
+	protocolEvent, err := ToProtocolEvent(event)
+	if err != nil {
+		return fmt.Errorf("convert event: %w", err)
 	}
 
-	if err := s.repo.Create(ctx, event); err != nil {
-		return fmt.Errorf("add event: %w", err)
-	}
-
-	// Record action
-	_ = s.auditService.Record(ctx, event.PatientID, protocol.ActionCreate, protocol.ResourceEvent, event.ID, nil)
-
-	return nil
+	return s.CreateEvent(ctx, protocolEvent)
 }
 
-// UpdateEvent implements append-only correction by creating a new version.
-func (s *service) UpdateEvent(ctx context.Context, event *TimelineEvent) error {
-	if event.ID == "" {
+// UpdateEventProtocol implements append-only correction using protocol types.
+func (s *service) UpdateEventProtocol(ctx context.Context, event *timeline.Event) error {
+	if event.ID.IsEmpty() {
 		return fmt.Errorf("update event: id required")
 	}
 
 	originalID := event.ID
 
 	err := s.repo.Transaction(ctx, func(repo Repository) error {
-		if _, err := repo.GetByID(ctx, originalID); err != nil {
+		if _, err := repo.GetEvent(ctx, originalID); err != nil {
 			return fmt.Errorf("find original: %w", err)
 		}
 
-		event.ID = ""
-		event.CreatedAt = time.Time{}
-		event.UpdatedAt = time.Time{}
+		// Create new event with cleared ID
+		correction := *event
+		correction.ID = types.ID("")
+		correction.CreatedAt = time.Time{}
+		correction.UpdatedAt = time.Time{}
 
-		if err := repo.Create(ctx, event); err != nil {
+		if err := repo.CreateEvent(ctx, &correction); err != nil {
 			return fmt.Errorf("create correction: %w", err)
 		}
 
-		if event.ID == "" {
+		if correction.ID.IsEmpty() {
 			return fmt.Errorf("empty id after creation")
 		}
 
-		edge := &EventEdge{
-			FromEventID:      event.ID,
-			ToEventID:        originalID,
-			RelationshipType: timeline.RelReplaces,
+		// Create replacement edge
+		edge, err := timeline.NewEdgeBuilder().
+			WithFromID(correction.ID).
+			WithToID(originalID).
+			WithType(timeline.RelReplaces).
+			Build()
+		if err != nil {
+			return fmt.Errorf("build edge: %w", err)
 		}
 
 		if err := repo.CreateEdge(ctx, edge); err != nil {
 			return fmt.Errorf("link correction: %w", err)
 		}
 
+		// Update event ID
+		event.ID = correction.ID
 		return nil
 	})
 	if err != nil {
@@ -150,39 +210,43 @@ func (s *service) UpdateEvent(ctx context.Context, event *TimelineEvent) error {
 	}
 
 	// Record action
-	_ = s.auditService.Record(ctx, event.PatientID, protocol.ActionUpdate, protocol.ResourceEvent, event.ID, nil)
+	_ = s.auditService.Record(ctx, event.PatientID.String(), protocol.ActionUpdate, protocol.ResourceEvent, event.ID.String(), nil)
 
 	slog.InfoContext(ctx, "timeline event corrected", "original", originalID, "replacement", event.ID)
 	return nil
 }
 
-// DeleteEvent implements append-only deletion by replacing the target with a Tombstone.
-func (s *service) DeleteEvent(ctx context.Context, id string) error {
+// DeleteEventByID implements append-only deletion using protocol types.
+func (s *service) DeleteEventByID(ctx context.Context, id types.ID) error {
 	err := s.repo.Transaction(ctx, func(repo Repository) error {
-		original, err := repo.GetByID(ctx, id)
+		original, err := repo.GetEvent(ctx, id)
 		if err != nil {
 			return fmt.Errorf("find original: %w", err)
 		}
 
-		tombstone := &TimelineEvent{
-			PatientID: original.PatientID,
-			Type:      timeline.EventTombstone,
-			Title:     "Deleted Event",
-			Timestamp: time.Now(),
+		// Create tombstone event
+		tombstone, err := timeline.NewEventBuilder().
+			WithPatientID(original.PatientID).
+			WithType(timeline.EventTombstone).
+			WithTitle("Deleted Event").
+			WithTimestamp(time.Now()).
+			Build()
+		if err != nil {
+			return fmt.Errorf("build tombstone: %w", err)
 		}
 
-		if err := repo.Create(ctx, tombstone); err != nil {
+		if err := repo.CreateEvent(ctx, tombstone); err != nil {
 			return fmt.Errorf("create tombstone: %w", err)
 		}
 
-		if tombstone.ID == "" {
-			return fmt.Errorf("empty id after tombstone creation")
-		}
-
-		edge := &EventEdge{
-			FromEventID:      tombstone.ID,
-			ToEventID:        id,
-			RelationshipType: timeline.RelReplaces,
+		// Create replacement edge
+		edge, err := timeline.NewEdgeBuilder().
+			WithFromID(tombstone.ID).
+			WithToID(id).
+			WithType(timeline.RelReplaces).
+			Build()
+		if err != nil {
+			return fmt.Errorf("build edge: %w", err)
 		}
 
 		if err := repo.CreateEdge(ctx, edge); err != nil {
@@ -196,21 +260,24 @@ func (s *service) DeleteEvent(ctx context.Context, id string) error {
 	}
 
 	// Record action
-	_ = s.auditService.Record(ctx, id, protocol.ActionDelete, protocol.ResourceEvent, id, nil)
+	_ = s.auditService.Record(ctx, id.String(), protocol.ActionDelete, protocol.ResourceEvent, id.String(), nil)
 
 	return nil
 }
 
-// LinkEvents connects two existing events.
-func (s *service) LinkEvents(ctx context.Context, fromID, toID string, relType timeline.RelationshipType) (*EventEdge, error) {
+// LinkEventsProtocol implements protocol-compliant edge creation.
+func (s *service) LinkEventsProtocol(ctx context.Context, fromID, toID types.ID, relType timeline.RelationshipType) (*timeline.Edge, error) {
 	if fromID == toID {
 		return nil, fmt.Errorf("link events: self-loop not allowed")
 	}
 
-	edge := &EventEdge{
-		FromEventID:      fromID,
-		ToEventID:        toID,
-		RelationshipType: relType,
+	edge, err := timeline.NewEdgeBuilder().
+		WithFromID(fromID).
+		WithToID(toID).
+		WithType(relType).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("build edge: %w", err)
 	}
 
 	if err := s.repo.CreateEdge(ctx, edge); err != nil {
@@ -220,15 +287,73 @@ func (s *service) LinkEvents(ctx context.Context, fromID, toID string, relType t
 	return edge, nil
 }
 
-// UnlinkEvents removes a connection edge.
-func (s *service) UnlinkEvents(ctx context.Context, edgeID string) error {
+// UnlinkEventsByID implements protocol-compliant edge deletion.
+func (s *service) UnlinkEventsByID(ctx context.Context, edgeID types.ID) error {
 	if err := s.repo.DeleteEdge(ctx, edgeID); err != nil {
 		return fmt.Errorf("unlink events %s: %w", edgeID, err)
 	}
 	return nil
 }
 
-// GetRelatedEvents finds connected events by traversing the graph.
+// Legacy methods for backward compatibility
+
+// UpdateEvent implements append-only correction by creating a new version (legacy).
+func (s *service) UpdateEvent(ctx context.Context, event *TimelineEvent) error {
+	protocolEvent, err := ToProtocolEvent(event)
+	if err != nil {
+		return fmt.Errorf("convert event: %w", err)
+	}
+
+	if err := s.UpdateEventProtocol(ctx, protocolEvent); err != nil {
+		return err
+	}
+
+	// Update entity with new ID
+	event.ID = protocolEvent.ID.String()
+	return nil
+}
+
+// DeleteEvent implements append-only deletion (legacy).
+func (s *service) DeleteEvent(ctx context.Context, id string) error {
+	eventID, err := types.NewID(id)
+	if err != nil {
+		return fmt.Errorf("invalid ID: %w", err)
+	}
+
+	return s.DeleteEventByID(ctx, eventID)
+}
+
+// LinkEvents connects two existing events (legacy).
+func (s *service) LinkEvents(ctx context.Context, fromID, toID string, relType timeline.RelationshipType) (*EventEdge, error) {
+	from, err := types.NewID(fromID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid from ID: %w", err)
+	}
+
+	to, err := types.NewID(toID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid to ID: %w", err)
+	}
+
+	edge, err := s.LinkEventsProtocol(ctx, from, to, relType)
+	if err != nil {
+		return nil, err
+	}
+
+	return ToEventEdge(edge), nil
+}
+
+// UnlinkEvents removes a connection edge (legacy).
+func (s *service) UnlinkEvents(ctx context.Context, edgeID string) error {
+	id, err := types.NewID(edgeID)
+	if err != nil {
+		return fmt.Errorf("invalid edge ID: %w", err)
+	}
+
+	return s.UnlinkEventsByID(ctx, id)
+}
+
+// GetRelatedEvents finds connected events by traversing the graph (legacy).
 func (s *service) GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error) {
 	if maxDepth < 1 {
 		maxDepth = 2
@@ -237,12 +362,22 @@ func (s *service) GetRelatedEvents(ctx context.Context, eventID string, maxDepth
 		maxDepth = 5
 	}
 
-	events, err := s.repo.GetRelatedEvents(ctx, eventID, maxDepth)
+	id, err := types.NewID(eventID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid event ID: %w", err)
+	}
+
+	events, _, err := s.repo.GetRelated(ctx, id, maxDepth)
 	if err != nil {
 		return nil, fmt.Errorf("get related for %s: %w", eventID, err)
 	}
 
-	return events, nil
+	entities := make([]TimelineEvent, len(events))
+	for i, e := range events {
+		entities[i] = *ToTimelineEvent(&e)
+	}
+
+	return entities, nil
 }
 
 // GetGraphData returns the adjacency list of nodes and edges.
@@ -278,7 +413,8 @@ func (s *service) UploadFile(ctx context.Context, eventID string, fileName strin
 		return nil, fmt.Errorf("repo create file: %w", err)
 	}
 
-	if event, err := s.repo.GetByID(ctx, eventID); err == nil && event != nil {
+	eventIDTyped, _ := types.NewID(eventID)
+	if event, err := s.repo.GetEvent(ctx, eventIDTyped); err == nil && event != nil {
 		auditMetadata := common.JSONMap{
 			"eventId":   eventID,
 			"fileName":  fileName,
@@ -286,7 +422,7 @@ func (s *service) UploadFile(ctx context.Context, eventID string, fileName strin
 			"mimeType":  contentType,
 			"isMultipart": false,
 		}
-		_ = s.auditService.Record(ctx, event.PatientID, protocol.ActionUpload, protocol.ResourceFile, file.ID, auditMetadata)
+		_ = s.auditService.Record(ctx, event.PatientID.String(), protocol.ActionUpload, protocol.ResourceFile, file.ID, auditMetadata)
 	}
 
 	return file, nil
@@ -360,7 +496,8 @@ func (s *service) CompleteMultipartUpload(
 		return nil, fmt.Errorf("repo create file: %w", err)
 	}
 
-	if event, err := s.repo.GetByID(ctx, eventID); err == nil && event != nil {
+	eventIDTyped, _ := types.NewID(eventID)
+	if event, err := s.repo.GetEvent(ctx, eventIDTyped); err == nil && event != nil {
 		auditMetadata := common.JSONMap{
 			"eventId":     eventID,
 			"fileName":    fileName,
@@ -368,7 +505,7 @@ func (s *service) CompleteMultipartUpload(
 			"mimeType":    contentType,
 			"isMultipart": true,
 		}
-		_ = s.auditService.Record(ctx, event.PatientID, protocol.ActionUpload, protocol.ResourceFile, file.ID, auditMetadata)
+		_ = s.auditService.Record(ctx, event.PatientID.String(), protocol.ActionUpload, protocol.ResourceFile, file.ID, auditMetadata)
 	}
 
 	return file, nil
@@ -405,14 +542,14 @@ func (s *service) SaveFileAccess(ctx context.Context, fileID string, grantee str
 	if err != nil {
 		return err
 	}
-	event, err := s.repo.GetByID(ctx, file.EventID)
-	if err == nil && event != nil {
+	eventIDTyped, _ := types.NewID(file.EventID)
+	if event, err := s.repo.GetEvent(ctx, eventIDTyped); err == nil && event != nil {
 		auditMetadata := common.JSONMap{
 			"eventId":  file.EventID,
 			"fileName": file.FileName,
 			"grantee":  grantee,
 		}
-		_ = s.auditService.Record(ctx, event.PatientID, protocol.ActionShare, protocol.ResourceFile, fileID, auditMetadata)
+		_ = s.auditService.Record(ctx, event.PatientID.String(), protocol.ActionShare, protocol.ResourceFile, fileID, auditMetadata)
 	}
 
 	return nil

@@ -38,6 +38,7 @@ type Grant struct {
 	State       State               `json:"state"`
 	ExpiresAt   time.Time           `json:"expiresAt,omitempty"`
 	Reason      string              `json:"reason,omitempty"`
+	SchemaVersion string            `json:"schemaVersion,omitempty"` // Protocol schema version (e.g., "consent.v1")
 	CreatedAt   time.Time           `json:"createdAt"`
 	UpdatedAt   time.Time           `json:"updatedAt"`
 }

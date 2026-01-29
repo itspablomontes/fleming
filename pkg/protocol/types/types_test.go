@@ -72,8 +72,8 @@ func TestWalletAddress_Equals(t *testing.T) {
 
 func TestMetadata(t *testing.T) {
 	m := NewMetadata()
-	m.Set("name", "test")
-	m.Set("count", 42)
+	m = m.Set("name", "test")
+	m = m.Set("count", 42)
 
 	if m.GetString("name") != "test" {
 		t.Error("GetString failed")

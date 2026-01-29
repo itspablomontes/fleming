@@ -1,33 +1,26 @@
 package consent
 
 import (
-	"slices"
-
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
 type State string
 
 const (
-	StateRequested State = "requested"
-
-	StateApproved State = "approved"
-
-	StateDenied State = "denied"
-
-	StateRevoked State = "revoked"
-
-	StateExpired State = "expired"
+	StateRequested State = "requested" // Initial state - consent request pending
+	StateApproved  State = "approved"  // Consent granted and active
+	StateDenied    State = "denied"    // Consent request rejected (terminal)
+	StateRevoked   State = "revoked"   // Consent revoked by grantor (terminal)
+	StateExpired   State = "expired"   // Consent expired due to TTL (terminal)
+	StateSuspended State = "suspended" // Consent temporarily suspended (can be resumed)
 )
 
-func ValidStates() []State {
-	return []State{StateRequested, StateApproved, StateDenied, StateRevoked, StateExpired}
-}
-
 func (s State) IsValid() bool {
-	return slices.Contains(ValidStates(), s)
+	return GetStateRegistry().IsValid(s)
 }
 
+// IsTerminal returns true if the state is final and cannot transition further.
+// Suspended is NOT terminal - it can be resumed.
 func (s State) IsTerminal() bool {
 	switch s {
 	case StateDenied, StateRevoked, StateExpired:
@@ -36,8 +29,15 @@ func (s State) IsTerminal() bool {
 	return false
 }
 
+// IsActive returns true if the consent is currently active (approved).
+// Suspended grants are NOT active.
 func (s State) IsActive() bool {
 	return s == StateApproved
+}
+
+// IsSuspended returns true if the consent is temporarily suspended.
+func (s State) IsSuspended() bool {
+	return s == StateSuspended
 }
 
 type Transition struct {
@@ -47,10 +47,18 @@ type Transition struct {
 }
 
 var validTransitions = []Transition{
+	// From Requested
 	{StateRequested, StateApproved, "approve"},
 	{StateRequested, StateDenied, "deny"},
+
+	// From Approved
 	{StateApproved, StateRevoked, "revoke"},
 	{StateApproved, StateExpired, "expire"},
+	{StateApproved, StateSuspended, "suspend"}, // NEW: Temporarily suspend
+
+	// From Suspended (can resume or permanently revoke)
+	{StateSuspended, StateApproved, "resume"}, // NEW: Resume suspended consent
+	{StateSuspended, StateRevoked, "revoke"},  // NEW: Permanently revoke from suspended
 }
 
 func ValidTransitions() []Transition {

@@ -1,43 +1,40 @@
 package timeline
 
 import (
-	"slices"
-
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
 type RelationshipType string
 
 const (
-	RelResultedIn RelationshipType = "resulted_in"
-
-	RelLeadTo RelationshipType = "lead_to"
-
+	// Core relationship types
+	RelResultedIn  RelationshipType = "resulted_in"
+	RelLeadTo      RelationshipType = "lead_to"
 	RelRequestedBy RelationshipType = "requested_by"
-
-	RelSupports RelationshipType = "supports"
-
-	RelFollowsUp RelationshipType = "follows_up"
-
+	RelSupports    RelationshipType = "supports"
+	RelFollowsUp   RelationshipType = "follows_up"
 	RelContradicts RelationshipType = "contradicts"
+	RelAttachedTo  RelationshipType = "attached_to"
+	RelReplaces    RelationshipType = "replaces"
+	RelCausedBy    RelationshipType = "caused_by"
 
-	RelAttachedTo RelationshipType = "attached_to"
+	// Provider attestation (CRITICAL for cosigning feature)
+	RelCosignedBy RelationshipType = "cosigned_by" // Provider co-signed event
+	RelAttestedBy RelationshipType = "attested_by" // Provider attested accuracy
 
-	RelReplaces RelationshipType = "replaces"
+	// Medical relationships
+	RelTreats          RelationshipType = "treats"          // Treatment relationship
+	RelMonitors        RelationshipType = "monitors"        // Monitoring relationship (e.g., lab monitors medication)
+	RelContraindicated RelationshipType = "contraindicated" // Contraindication relationship
+	RelDerivedFrom     RelationshipType = "derived_from"    // Data derived from another event
+	RelPartOf          RelationshipType = "part_of"         // Component of larger entity
 
-	RelCausedBy RelationshipType = "caused_by"
+	// AI/Suggestions
+	RelSuggestedBy RelationshipType = "suggested_by" // Suggested by AI/rule engine
 )
 
-func ValidRelationshipTypes() []RelationshipType {
-	return []RelationshipType{
-		RelResultedIn, RelLeadTo, RelRequestedBy,
-		RelSupports, RelFollowsUp, RelContradicts, RelAttachedTo,
-		RelReplaces, RelCausedBy,
-	}
-}
-
 func (rt RelationshipType) IsValid() bool {
-	return slices.Contains(ValidRelationshipTypes(), rt)
+	return GetRelationshipTypeRegistry().IsValid(rt)
 }
 
 func (rt RelationshipType) Description() string {
@@ -60,6 +57,22 @@ func (rt RelationshipType) Description() string {
 		return "replaces"
 	case RelCausedBy:
 		return "was caused by"
+	case RelCosignedBy:
+		return "was co-signed by"
+	case RelAttestedBy:
+		return "was attested by"
+	case RelTreats:
+		return "treats"
+	case RelMonitors:
+		return "monitors"
+	case RelContraindicated:
+		return "is contraindicated with"
+	case RelDerivedFrom:
+		return "was derived from"
+	case RelPartOf:
+		return "is part of"
+	case RelSuggestedBy:
+		return "was suggested by"
 	default:
 		return "relates to"
 	}

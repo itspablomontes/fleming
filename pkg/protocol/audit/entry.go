@@ -4,56 +4,82 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"slices"
 	"time"
 
+	"github.com/itspablomontes/fleming/pkg/protocol"
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
+
+const SchemaVersionAudit = protocol.SchemaVersionAudit
 
 type Action string
 
 const (
+	// CRUD operations
 	ActionCreate Action = "create"
 	ActionRead   Action = "read"
 	ActionUpdate Action = "update"
 	ActionDelete Action = "delete"
 
+	// Consent operations
 	ActionConsentRequest Action = "consent.request"
 	ActionConsentApprove Action = "consent.approve"
 	ActionConsentDeny    Action = "consent.deny"
 	ActionConsentRevoke  Action = "consent.revoke"
 	ActionConsentExpire  Action = "consent.expire"
+	ActionConsentSuspend Action = "consent.suspend"
+	ActionConsentResume  Action = "consent.resume"
 
+	// Authentication
 	ActionLogin  Action = "auth.login"
 	ActionLogout Action = "auth.logout"
 
+	// File operations
 	ActionUpload   Action = "file.upload"
 	ActionDownload Action = "file.download"
 	ActionShare    Action = "file.share"
+
+	// Verifiable Credentials
+	ActionVCIssue   Action = "vc.issue"
+	ActionVCRevoke  Action = "vc.revoke"
+	ActionVCVerify  Action = "vc.verify"
+	ActionVCPresent Action = "vc.present"
+
+	// Zero-Knowledge Proofs
+	ActionZKGenerate Action = "zk.generate"
+	ActionZKVerify   Action = "zk.verify"
+
+	// Attestation (Post-MVP)
+	ActionCosign Action = "attestation.cosign"
+	ActionAttest Action = "attestation.attest"
 )
 
-func ValidActions() []Action {
-	return []Action{
-		ActionCreate, ActionRead, ActionUpdate, ActionDelete,
-		ActionConsentRequest, ActionConsentApprove, ActionConsentDeny,
-		ActionConsentRevoke, ActionConsentExpire,
-		ActionLogin, ActionLogout,
-		ActionUpload, ActionDownload, ActionShare,
-	}
-}
-
 func (a Action) IsValid() bool {
-	return slices.Contains(ValidActions(), a)
+	return GetActionRegistry().IsValid(a)
 }
 
 type ResourceType string
 
 const (
-	ResourceEvent   ResourceType = "event"
-	ResourceFile    ResourceType = "file"
-	ResourceConsent ResourceType = "consent"
-	ResourceSession ResourceType = "session"
+	// Core resources
+	ResourceEvent   ResourceType = "event"   // Timeline event
+	ResourceFile    ResourceType = "file"    // File attachment
+	ResourceConsent ResourceType = "consent" // Consent grant
+	ResourceSession ResourceType = "session" // User session
+
+	// Verifiable Credentials
+	ResourceVC ResourceType = "vc" // Verifiable credential
+
+	// Zero-Knowledge Proofs
+	ResourceZKProof ResourceType = "zk_proof" // Zero-knowledge proof
+
+	// Attestation
+	ResourceAttestation ResourceType = "attestation" // Provider attestation
 )
+
+func (rt ResourceType) IsValid() bool {
+	return GetResourceTypeRegistry().IsValid(rt)
+}
 
 type Entry struct {
 	ID types.ID `json:"id"`
@@ -70,6 +96,8 @@ type Entry struct {
 
 	Metadata types.Metadata `json:"metadata,omitempty"`
 
+	SchemaVersion string `json:"schemaVersion,omitempty"`
+
 	Hash string `json:"hash,omitempty"`
 
 	PreviousHash string `json:"previousHash,omitempty"`
@@ -84,6 +112,10 @@ func (e *Entry) Validate() error {
 
 	if !e.Action.IsValid() {
 		errs.Add("action", "invalid action")
+	}
+
+	if !e.ResourceType.IsValid() {
+		errs.Add("resourceType", "invalid resource type")
 	}
 
 	if e.ResourceID.IsEmpty() {
@@ -141,13 +173,14 @@ func NewEntry(
 	previousHash string,
 ) *Entry {
 	entry := &Entry{
-		Actor:        actor,
-		Action:       action,
-		ResourceType: resourceType,
-		ResourceID:   resourceID,
-		Timestamp:    time.Now().UTC(),
-		PreviousHash: previousHash,
-		Metadata:     types.NewMetadata(),
+		Actor:         actor,
+		Action:        action,
+		ResourceType:  resourceType,
+		ResourceID:    resourceID,
+		Timestamp:     time.Now().UTC(),
+		PreviousHash:  previousHash,
+		Metadata:      types.NewMetadata(),
+		SchemaVersion: SchemaVersionAudit,
 	}
 	entry.SetHash()
 	return entry

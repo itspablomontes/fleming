@@ -12,10 +12,38 @@ func TestAction_IsValid(t *testing.T) {
 		action Action
 		want   bool
 	}{
+		// CRUD
 		{ActionCreate, true},
 		{ActionRead, true},
+		{ActionUpdate, true},
+		{ActionDelete, true},
+		// Consent
+		{ActionConsentRequest, true},
 		{ActionConsentApprove, true},
+		{ActionConsentDeny, true},
+		{ActionConsentRevoke, true},
+		{ActionConsentExpire, true},
+		{ActionConsentSuspend, true},
+		{ActionConsentResume, true},
+		// Auth
 		{ActionLogin, true},
+		{ActionLogout, true},
+		// Files
+		{ActionUpload, true},
+		{ActionDownload, true},
+		{ActionShare, true},
+		// VC
+		{ActionVCIssue, true},
+		{ActionVCRevoke, true},
+		{ActionVCVerify, true},
+		{ActionVCPresent, true},
+		// ZK
+		{ActionZKGenerate, true},
+		{ActionZKVerify, true},
+		// Attestation
+		{ActionCosign, true},
+		{ActionAttest, true},
+		// Invalid
 		{"unknown", false},
 		{"", false},
 	}
@@ -23,6 +51,31 @@ func TestAction_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.action), func(t *testing.T) {
 			if got := tt.action.IsValid(); got != tt.want {
+				t.Errorf("IsValid() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResourceType_IsValid(t *testing.T) {
+	tests := []struct {
+		rt   ResourceType
+		want bool
+	}{
+		{ResourceEvent, true},
+		{ResourceFile, true},
+		{ResourceConsent, true},
+		{ResourceSession, true},
+		{ResourceVC, true},
+		{ResourceZKProof, true},
+		{ResourceAttestation, true},
+		{"unknown", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.rt), func(t *testing.T) {
+			if got := tt.rt.IsValid(); got != tt.want {
 				t.Errorf("IsValid() = %v, want %v", got, tt.want)
 			}
 		})
