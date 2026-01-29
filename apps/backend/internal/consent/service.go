@@ -2,6 +2,7 @@ package consent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -12,12 +13,17 @@ import (
 	"github.com/itspablomontes/fleming/pkg/protocol/consent"
 )
 
+// ErrInvalidPermission is returned when a permission string is not read, write, or share.
+var ErrInvalidPermission = errors.New("invalid permission")
+
 // Service defines the business logic for patient consent.
 type Service interface {
 	RequestConsent(ctx context.Context, grantor, grantee, reason string, permissions []string, expiresAt time.Time) (*ConsentGrant, error)
 	ApproveConsent(ctx context.Context, grantID string) error
 	DenyConsent(ctx context.Context, grantID string) error
 	RevokeConsent(ctx context.Context, grantID string) error
+	SuspendConsent(ctx context.Context, grantID string) error
+	ResumeConsent(ctx context.Context, grantID string) error
 	GetGrantByID(ctx context.Context, grantID string) (*ConsentGrant, error)
 	GetActiveGrants(ctx context.Context, grantee string) ([]ConsentGrant, error)
 	GetGrantsByGrantor(ctx context.Context, grantor string) ([]ConsentGrant, error)
@@ -38,6 +44,11 @@ func NewService(repo Repository, auditService audit.Service) Service {
 }
 
 func (s *service) RequestConsent(ctx context.Context, grantor, grantee, reason string, permissions []string, expiresAt time.Time) (*ConsentGrant, error) {
+	for _, p := range permissions {
+		if !consent.Permission(p).IsValid() {
+			return nil, fmt.Errorf("%w: %q (must be read, write, or share)", ErrInvalidPermission, p)
+		}
+	}
 	grant := &ConsentGrant{
 		Grantor:     grantor,
 		Grantee:     grantee,
@@ -114,6 +125,44 @@ func (s *service) RevokeConsent(ctx context.Context, grantID string) error {
 	}
 
 	_ = s.auditService.Record(ctx, grant.Grantor, protocol.ActionConsentRevoke, protocol.ResourceConsent, grant.ID, nil)
+	return nil
+}
+
+func (s *service) SuspendConsent(ctx context.Context, grantID string) error {
+	grant, err := s.repo.GetByID(ctx, grantID)
+	if err != nil {
+		return err
+	}
+
+	if err := consent.TryTransition(grant.State, consent.StateSuspended); err != nil {
+		return fmt.Errorf("invalid transition: %w", err)
+	}
+
+	grant.State = consent.StateSuspended
+	if err := s.repo.Update(ctx, grant); err != nil {
+		return err
+	}
+
+	_ = s.auditService.Record(ctx, grant.Grantor, protocol.ActionConsentSuspend, protocol.ResourceConsent, grant.ID, nil)
+	return nil
+}
+
+func (s *service) ResumeConsent(ctx context.Context, grantID string) error {
+	grant, err := s.repo.GetByID(ctx, grantID)
+	if err != nil {
+		return err
+	}
+
+	if err := consent.TryTransition(grant.State, consent.StateApproved); err != nil {
+		return fmt.Errorf("invalid transition: %w", err)
+	}
+
+	grant.State = consent.StateApproved
+	if err := s.repo.Update(ctx, grant); err != nil {
+		return err
+	}
+
+	_ = s.auditService.Record(ctx, grant.Grantor, protocol.ActionConsentResume, protocol.ResourceConsent, grant.ID, nil)
 	return nil
 }
 
