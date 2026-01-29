@@ -171,3 +171,4 @@ Thumbs.db
 *.temp
 tmp/
 temp/
+.gocache/

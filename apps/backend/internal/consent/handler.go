@@ -20,15 +20,17 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	consent := rg.Group("/consent")
+	consentGroup := rg.Group("/consent")
 	{
-		consent.POST("/request", h.HandleRequest)
-		consent.POST("/:id/approve", h.HandleApprove)
-		consent.POST("/:id/deny", h.HandleDeny)
-		consent.POST("/:id/revoke", h.HandleRevoke)
-		consent.GET("/active", h.HandleGetActive)
-		consent.GET("/grants", h.HandleGetMyGrants)
-		consent.GET("/:id", h.HandleGetByID)
+		consentGroup.POST("/request", h.HandleRequest)
+		consentGroup.POST("/:id/approve", h.HandleApprove)
+		consentGroup.POST("/:id/deny", h.HandleDeny)
+		consentGroup.POST("/:id/revoke", h.HandleRevoke)
+		consentGroup.POST("/:id/suspend", h.HandleSuspend)
+		consentGroup.POST("/:id/resume", h.HandleResume)
+		consentGroup.GET("/active", h.HandleGetActive)
+		consentGroup.GET("/grants", h.HandleGetMyGrants)
+		consentGroup.GET("/:id", h.HandleGetByID)
 	}
 }
 
@@ -84,6 +86,10 @@ func (h *Handler) HandleRequest(c *gin.Context) {
 
 	grant, err := h.service.RequestConsent(c.Request.Context(), req.Grantor, grantee, req.Reason, req.Permissions, expiresAt)
 	if err != nil {
+		if errors.Is(err, ErrInvalidPermission) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to request consent"})
 		return
 	}
@@ -112,6 +118,24 @@ func (h *Handler) HandleDeny(c *gin.Context) {
 func (h *Handler) HandleRevoke(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.service.RevokeConsent(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *Handler) HandleSuspend(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.service.SuspendConsent(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *Handler) HandleResume(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.service.ResumeConsent(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

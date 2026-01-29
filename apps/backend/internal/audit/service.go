@@ -68,14 +68,15 @@ func (s *service) Record(ctx context.Context, actor string, action audit.Action,
 	}
 
 	dbEntry := &AuditEntry{
-		Actor:        actor,
-		Action:       action,
-		ResourceType: resourceType,
-		ResourceID:   resourceID,
-		Timestamp:    protocolEntry.Timestamp,
-		Metadata:     metadata,
-		Hash:         protocolEntry.Hash,
-		PreviousHash: protocolEntry.PreviousHash,
+		Actor:         actor,
+		Action:        action,
+		ResourceType:  resourceType,
+		ResourceID:    resourceID,
+		Timestamp:     protocolEntry.Timestamp,
+		Metadata:      metadata,
+		Hash:          protocolEntry.Hash,
+		PreviousHash:  protocolEntry.PreviousHash,
+		SchemaVersion: protocolEntry.SchemaVersion,
 	}
 
 	if err := s.repo.Create(ctx, dbEntry); err != nil {
