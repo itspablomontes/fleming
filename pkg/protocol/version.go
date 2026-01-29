@@ -2,17 +2,17 @@ package protocol
 
 // Version constants for the Fleming Protocol.
 const (
-	VersionMajor = 1
-	VersionMinor = 0
-	VersionPatch = 0
-	VersionString = "1.0.0"
+	VersionMajor  = 0
+	VersionMinor  = 1
+	VersionPatch  = 0
+	VersionString = "0.1.0"
 )
 
 // Version represents a protocol version with major, minor, patch, and schema version.
 type Version struct {
-	Major int    `json:"major"`
-	Minor int    `json:"minor"`
-	Patch int    `json:"patch"`
+	Major  int    `json:"major"`
+	Minor  int    `json:"minor"`
+	Patch  int    `json:"patch"`
 	Schema string `json:"schema,omitempty"` // Schema version (e.g., "timeline.v1", "consent.v1")
 }
 
