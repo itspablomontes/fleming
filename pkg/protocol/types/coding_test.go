@@ -9,6 +9,9 @@ func TestCodingSystem_IsValid(t *testing.T) {
 	}{
 		{CodingICD10, true},
 		{CodingLOINC, true},
+		{CodingSNOMED, true},
+		{CodingRxNorm, true},
+		{CodingBIOHACK, true},
 		{CodingCustom, true},
 		{"unknown", false},
 		{"", false},
@@ -99,10 +102,93 @@ func TestCode_Equals(t *testing.T) {
 	}
 }
 
+func TestCode_Validate_SNOMED(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{"6 digits", "123456", false},
+		{"8 digits", "12345678", false},
+		{"18 digits", "123456789012345678", false},
+		{"7 digits", "1234567", false},
+		{"invalid - too short", "12345", true},
+		{"invalid - contains letters", "12345A", true},
+		{"invalid - contains dash", "12345-6", true},
+		{"empty", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewCode(CodingSNOMED, tt.value)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewCode(SNOMED, %q) error = %v, wantErr %v", tt.value, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCode_Validate_RxNorm(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{"5 digits", "12345", false},
+		{"7 digits", "1234567", false},
+		{"10 digits", "1234567890", false},
+		{"1 digit", "1", false},
+		{"invalid - contains letters", "12345A", true},
+		{"invalid - contains dash", "123-45", true},
+		{"empty", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewCode(CodingRxNorm, tt.value)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewCode(RxNorm, %q) error = %v, wantErr %v", tt.value, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCode_Validate_BIOHACK(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{"Rapamycin", "BIOHACK:RAPA", false},
+		{"NAD", "BIOHACK:NAD", false},
+		{"NMN", "BIOHACK:NMN", false},
+		{"Peptides", "BIOHACK:PEPT", false},
+		{"HRV", "BIOHACK:HRV", false},
+		{"VO2Max", "BIOHACK:VO2MAX", false},
+		{"lowercase", "biohack:rapa", false}, // Should normalize
+		{"invalid - missing prefix", "RAPA", true},
+		{"invalid - wrong prefix", "CUSTOM:RAPA", true},
+		{"invalid - no code", "BIOHACK:", true},
+		{"invalid - contains spaces", "BIOHACK:RA PA", true},
+		{"empty", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewCode(CodingBIOHACK, tt.value)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewCode(BIOHACK, %q) error = %v, wantErr %v", tt.value, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestCodes_BySystem(t *testing.T) {
 	codes := Codes{
 		{System: CodingICD10, Value: "E11.9", Display: "Type 2 diabetes"},
 		{System: CodingLOINC, Value: "8480-6", Display: "Systolic BP"},
+		{System: CodingSNOMED, Value: "123456", Display: "SNOMED code"},
+		{System: CodingBIOHACK, Value: "BIOHACK:RAPA", Display: "Rapamycin"},
 	}
 
 	icd, found := codes.BySystem(CodingICD10)
@@ -111,6 +197,22 @@ func TestCodes_BySystem(t *testing.T) {
 	}
 	if icd.Value != "E11.9" {
 		t.Errorf("Wrong code value: %s", icd.Value)
+	}
+
+	snomed, found := codes.BySystem(CodingSNOMED)
+	if !found {
+		t.Error("Should find SNOMED code")
+	}
+	if snomed.Value != "123456" {
+		t.Errorf("Wrong SNOMED value: %s", snomed.Value)
+	}
+
+	biohack, found := codes.BySystem(CodingBIOHACK)
+	if !found {
+		t.Error("Should find BIOHACK code")
+	}
+	if biohack.Value != "BIOHACK:RAPA" {
+		t.Errorf("Wrong BIOHACK value: %s", biohack.Value)
 	}
 
 	_, found = codes.BySystem(CodingCustom)
