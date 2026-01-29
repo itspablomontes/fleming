@@ -110,29 +110,55 @@ func (h *Handler) HandleAddEvent(c *gin.Context) {
 
 	isEncrypted := form.Get("isEncrypted") == "true"
 
-	event := &TimelineEvent{
-		PatientID:   address,
-		Type:        timeline.EventType(eventType),
-		Title:       title,
-		Description: form.Get("description"),
-		Provider:    form.Get("provider"),
-		Timestamp:   timestamp,
-		BlobRef:     form.Get("blobRef"),
-		IsEncrypted: isEncrypted,
+	// Build protocol event using builder (validates!)
+	patientAddr, err := types.NewWalletAddress(address)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid patient address"})
+		return
 	}
 
+	builder := timeline.NewEventBuilder().
+		WithPatientID(patientAddr).
+		WithType(timeline.EventType(eventType)).
+		WithTitle(title).
+		WithDescription(form.Get("description")).
+		WithProvider(form.Get("provider")).
+		WithTimestamp(timestamp)
+
+	// Parse metadata if present
 	metadataStr := form.Get("metadata")
 	if metadataStr != "" {
 		var meta common.JSONMap
 		if err := json.Unmarshal([]byte(metadataStr), &meta); err == nil {
-			event.Metadata = meta
+			protocolMeta := types.NewMetadata()
+			for k, v := range meta {
+				protocolMeta = protocolMeta.Set(k, v)
+			}
+			builder = builder.WithMetadata(protocolMeta)
 		}
 	}
 
-	if err := h.service.AddEvent(c.Request.Context(), event); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save event"})
+	protocolEvent, err := builder.Build()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event: " + err.Error()})
 		return
 	}
+
+	// Store backend-specific fields in metadata
+	if form.Get("blobRef") != "" {
+		protocolEvent.Metadata = protocolEvent.Metadata.Set("blobRef", form.Get("blobRef"))
+	}
+	if isEncrypted {
+		protocolEvent.Metadata = protocolEvent.Metadata.Set("isEncrypted", true)
+	}
+
+	if err := h.service.CreateEvent(c.Request.Context(), protocolEvent); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save event: " + err.Error()})
+		return
+	}
+
+	// Convert to entity for response
+	event := ToTimelineEvent(protocolEvent)
 
 	// Handle File Upload if present
 	file, header, err := c.Request.FormFile("file")
@@ -518,35 +544,62 @@ func (h *Handler) HandleCorrectEvent(c *gin.Context) {
 
 	isEncrypted := form.Get("isEncrypted") == "true"
 
-	event := &TimelineEvent{
-		ID:          eventID,
-		PatientID:   address,
-		Type:        timeline.EventType(eventType),
-		Title:       title,
-		Description: form.Get("description"),
-		Provider:    form.Get("provider"),
-		Timestamp:   timestamp,
-		BlobRef:     form.Get("blobRef"),
-		IsEncrypted: isEncrypted,
+	// Build protocol event using builder (validates!)
+	eventIDTyped, err := types.NewID(eventID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event ID"})
+		return
 	}
 
+	patientAddr, err := types.NewWalletAddress(address)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid patient address"})
+		return
+	}
+
+	builder := timeline.NewEventBuilder().
+		WithID(eventIDTyped).
+		WithPatientID(patientAddr).
+		WithType(timeline.EventType(eventType)).
+		WithTitle(title).
+		WithDescription(form.Get("description")).
+		WithProvider(form.Get("provider")).
+		WithTimestamp(timestamp)
+
+	// Parse metadata if present
 	metadataStr := form.Get("metadata")
 	if metadataStr != "" {
 		var meta common.JSONMap
 		if err := json.Unmarshal([]byte(metadataStr), &meta); err == nil {
-			event.Metadata = meta
+			protocolMeta := types.NewMetadata()
+			for k, v := range meta {
+				protocolMeta = protocolMeta.Set(k, v)
+			}
+			builder = builder.WithMetadata(protocolMeta)
 		}
 	}
 
-	// Parse codes if present
-	// Note: In AddEvent codes were not parsed, but here we might want them.
-	// For now keeping consistent with simple form fields.
-	// If codes are needed, they would come as a JSON string too.
+	protocolEvent, err := builder.Build()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event: " + err.Error()})
+		return
+	}
 
-	if err := h.service.UpdateEvent(c.Request.Context(), event); err != nil {
+	// Store backend-specific fields in metadata
+	if form.Get("blobRef") != "" {
+		protocolEvent.Metadata = protocolEvent.Metadata.Set("blobRef", form.Get("blobRef"))
+	}
+	if isEncrypted {
+		protocolEvent.Metadata = protocolEvent.Metadata.Set("isEncrypted", true)
+	}
+
+	if err := h.service.UpdateEventProtocol(c.Request.Context(), protocolEvent); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to correct event: " + err.Error()})
 		return
 	}
+
+	// Convert to entity for response
+	event := ToTimelineEvent(protocolEvent)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
@@ -590,16 +643,36 @@ func (h *Handler) HandleLinkEvents(c *gin.Context) {
 		return
 	}
 
-	edge, err := h.service.LinkEvents(
-		c.Request.Context(),
-		fromEventID,
-		req.ToEventID,
-		timeline.RelationshipType(req.RelationshipType),
-	)
+	fromID, err := types.NewID(fromEventID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid from event ID"})
 		return
 	}
+
+	toID, err := types.NewID(req.ToEventID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid to event ID"})
+		return
+	}
+
+	relType := timeline.RelationshipType(req.RelationshipType)
+	if !relType.IsValid() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid relationship type"})
+		return
+	}
+
+	protocolEdge, err := h.service.LinkEventsProtocol(
+		c.Request.Context(),
+		fromID,
+		toID,
+		relType,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link events: " + err.Error()})
+		return
+	}
+
+	edge := ToEventEdge(protocolEdge)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,

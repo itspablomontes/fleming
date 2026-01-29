@@ -1,7 +1,6 @@
 package timeline
 
 // GraphData is an in-memory representation of the graph for visualization/export.
-// This is an implementation detail and should not be part of the protocol layer.
 type GraphData struct {
 	Events []TimelineEvent `json:"events"`
 	Edges  []EventEdge     `json:"edges"`
