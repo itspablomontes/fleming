@@ -12,6 +12,7 @@ func TestState_IsValid(t *testing.T) {
 		{StateDenied, true},
 		{StateRevoked, true},
 		{StateExpired, true},
+		{StateSuspended, true},
 		{"unknown", false},
 		{"", false},
 	}
@@ -32,6 +33,7 @@ func TestState_IsTerminal(t *testing.T) {
 	}{
 		{StateRequested, false},
 		{StateApproved, false},
+		{StateSuspended, false}, // Suspended is NOT terminal
 		{StateDenied, true},
 		{StateRevoked, true},
 		{StateExpired, true},
@@ -41,6 +43,28 @@ func TestState_IsTerminal(t *testing.T) {
 		t.Run(string(tt.state), func(t *testing.T) {
 			if got := tt.state.IsTerminal(); got != tt.want {
 				t.Errorf("IsTerminal() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestState_IsSuspended(t *testing.T) {
+	tests := []struct {
+		state State
+		want  bool
+	}{
+		{StateSuspended, true},
+		{StateRequested, false},
+		{StateApproved, false},
+		{StateDenied, false},
+		{StateRevoked, false},
+		{StateExpired, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.state), func(t *testing.T) {
+			if got := tt.state.IsSuspended(); got != tt.want {
+				t.Errorf("IsSuspended() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -57,10 +81,15 @@ func TestCanTransition(t *testing.T) {
 		{"requested to denied", StateRequested, StateDenied, true},
 		{"approved to revoked", StateApproved, StateRevoked, true},
 		{"approved to expired", StateApproved, StateExpired, true},
+		{"approved to suspended", StateApproved, StateSuspended, true},
+		{"suspended to approved", StateSuspended, StateApproved, true},
+		{"suspended to revoked", StateSuspended, StateRevoked, true},
 		{"requested to revoked", StateRequested, StateRevoked, false},
 		{"approved to denied", StateApproved, StateDenied, false},
 		{"denied to approved", StateDenied, StateApproved, false},
 		{"revoked to approved", StateRevoked, StateApproved, false},
+		{"suspended to denied", StateSuspended, StateDenied, false},
+		{"suspended to expired", StateSuspended, StateExpired, false},
 	}
 
 	for _, tt := range tests {
@@ -73,33 +102,61 @@ func TestCanTransition(t *testing.T) {
 }
 
 func TestGetAction(t *testing.T) {
-	action, ok := GetAction(StateRequested, StateApproved)
-	if !ok {
-		t.Error("Expected to find action for valid transition")
-	}
-	if action != "approve" {
-		t.Errorf("Expected action 'approve', got '%s'", action)
+	tests := []struct {
+		name     string
+		from     State
+		to       State
+		want     string
+		wantOk   bool
+	}{
+		{"requested to approved", StateRequested, StateApproved, "approve", true},
+		{"requested to denied", StateRequested, StateDenied, "deny", true},
+		{"approved to revoked", StateApproved, StateRevoked, "revoke", true},
+		{"approved to expired", StateApproved, StateExpired, "expire", true},
+		{"approved to suspended", StateApproved, StateSuspended, "suspend", true},
+		{"suspended to approved", StateSuspended, StateApproved, "resume", true},
+		{"suspended to revoked", StateSuspended, StateRevoked, "revoke", true},
+		{"denied to approved", StateDenied, StateApproved, "", false},
+		{"invalid transition", StateRequested, StateRevoked, "", false},
 	}
 
-	_, ok = GetAction(StateDenied, StateApproved)
-	if ok {
-		t.Error("Expected no action for invalid transition")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			action, ok := GetAction(tt.from, tt.to)
+			if ok != tt.wantOk {
+				t.Errorf("GetAction() ok = %v, want %v", ok, tt.wantOk)
+				return
+			}
+			if ok && action != tt.want {
+				t.Errorf("GetAction() action = %v, want %v", action, tt.want)
+			}
+		})
 	}
 }
 
 func TestTryTransition(t *testing.T) {
-	err := TryTransition(StateRequested, StateApproved)
-	if err != nil {
-		t.Errorf("Expected valid transition, got error: %v", err)
+	tests := []struct {
+		name    string
+		from    State
+		to      State
+		wantErr bool
+	}{
+		{"requested to approved", StateRequested, StateApproved, false},
+		{"approved to suspended", StateApproved, StateSuspended, false},
+		{"suspended to approved", StateSuspended, StateApproved, false},
+		{"suspended to revoked", StateSuspended, StateRevoked, false},
+		{"denied to approved", StateDenied, StateApproved, true},
+		{"requested to revoked", StateRequested, StateRevoked, true},
+		{"suspended to denied", StateSuspended, StateDenied, true},
+		{"invalid state", "invalid", StateApproved, true},
 	}
 
-	err = TryTransition(StateDenied, StateApproved)
-	if err == nil {
-		t.Error("Expected error from terminal state transition")
-	}
-
-	err = TryTransition(StateRequested, StateRevoked)
-	if err == nil {
-		t.Error("Expected error for invalid transition")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := TryTransition(tt.from, tt.to)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("TryTransition() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }
