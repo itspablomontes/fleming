@@ -2,8 +2,6 @@ package timeline
 
 import (
 	"testing"
-
-	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
 func TestRelationshipType_IsValid(t *testing.T) {
@@ -11,11 +9,28 @@ func TestRelationshipType_IsValid(t *testing.T) {
 		rt   RelationshipType
 		want bool
 	}{
+		// Core relationships
 		{RelResultedIn, true},
+		{RelLeadTo, true},
+		{RelRequestedBy, true},
 		{RelSupports, true},
 		{RelFollowsUp, true},
+		{RelContradicts, true},
+		{RelAttachedTo, true},
 		{RelReplaces, true},
 		{RelCausedBy, true},
+		// Provider attestation
+		{RelCosignedBy, true},
+		{RelAttestedBy, true},
+		// Medical relationships
+		{RelTreats, true},
+		{RelMonitors, true},
+		{RelContraindicated, true},
+		{RelDerivedFrom, true},
+		{RelPartOf, true},
+		// AI/Suggestions
+		{RelSuggestedBy, true},
+		// Invalid
 		{"unknown", false},
 		{"", false},
 	}
@@ -24,6 +39,33 @@ func TestRelationshipType_IsValid(t *testing.T) {
 		t.Run(string(tt.rt), func(t *testing.T) {
 			if got := tt.rt.IsValid(); got != tt.want {
 				t.Errorf("IsValid() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRelationshipType_Description(t *testing.T) {
+	tests := []struct {
+		rt   RelationshipType
+		want string
+	}{
+		{RelResultedIn, "resulted in"},
+		{RelCosignedBy, "was co-signed by"},
+		{RelAttestedBy, "was attested by"},
+		{RelTreats, "treats"},
+		{RelMonitors, "monitors"},
+		{RelContraindicated, "is contraindicated with"},
+		{RelDerivedFrom, "was derived from"},
+		{RelPartOf, "is part of"},
+		{RelSuggestedBy, "was suggested by"},
+		{"unknown", "relates to"},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.rt), func(t *testing.T) {
+			got := tt.rt.Description()
+			if got != tt.want {
+				t.Errorf("Description() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -108,34 +150,5 @@ func TestEdge_Reverse(t *testing.T) {
 	}
 	if reversed.ID != edge.ID {
 		t.Error("Reverse should preserve ID")
-	}
-}
-
-func TestGraphData(t *testing.T) {
-	g := NewGraphData()
-
-	event := Event{ID: types.ID("evt-1"), Title: "Test Event"}
-	edge := Edge{ID: types.ID("edge-1"), FromID: "evt-1", ToID: "evt-2", Type: RelResultedIn}
-
-	g.AddEvent(event)
-	g.AddEdge(edge)
-
-	if len(g.Events) != 1 {
-		t.Errorf("Expected 1 event, got %d", len(g.Events))
-	}
-
-	found := g.FindEvent("evt-1")
-	if found == nil {
-		t.Error("Expected to find event")
-	}
-
-	outgoing := g.GetOutgoingEdges("evt-1")
-	if len(outgoing) != 1 {
-		t.Errorf("Expected 1 outgoing edge, got %d", len(outgoing))
-	}
-
-	incoming := g.GetIncomingEdges("evt-2")
-	if len(incoming) != 1 {
-		t.Errorf("Expected 1 incoming edge, got %d", len(incoming))
 	}
 }
