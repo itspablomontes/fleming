@@ -10,7 +10,7 @@ type TypeMetadata struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Deprecated  bool   `json:"deprecated"`
-	Since       string `json:"since"` // Version when added (e.g., "1.0.0")
+	Since       string `json:"since"`
 }
 
 // TypeRegistry is a generic interface for type registries that allow runtime registration
@@ -33,7 +33,7 @@ type TypeRegistry[T comparable] interface {
 type registry[T comparable] struct {
 	mu        sync.RWMutex
 	types     map[T]TypeMetadata
-	typeOrder []T // Preserve registration order
+	typeOrder []T
 }
 
 // NewTypeRegistry creates a new thread-safe type registry.
