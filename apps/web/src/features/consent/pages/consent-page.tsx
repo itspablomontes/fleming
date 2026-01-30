@@ -27,10 +27,15 @@ export function ConsentPage(): JSX.Element {
 		<div className="min-h-screen bg-gray-50 px-4 py-6 dark:bg-gray-950 md:px-8 md:py-10">
 			<div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
 				<div className="flex flex-col gap-3">
-					<Button variant="ghost" size="sm" asChild className="w-fit">
+					<Button
+						variant="ghost"
+						size="icon"
+						asChild
+						className="h-9 w-9 shrink-0"
+						aria-label="Back to timeline"
+					>
 						<Link to="/">
 							<ArrowLeft className="h-4 w-4" />
-							Back to timeline
 						</Link>
 					</Button>
 					<div className="flex flex-col gap-2">
@@ -39,6 +44,9 @@ export function ConsentPage(): JSX.Element {
 						</h1>
 						<p className="text-sm text-muted-foreground">
 							Control who can view or update your medical timeline.
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Request access for a patient, or manage existing grants below.
 						</p>
 					</div>
 				</div>
@@ -54,7 +62,8 @@ export function ConsentPage(): JSX.Element {
 								Recent consent activity
 							</CardTitle>
 							<p className="text-sm text-muted-foreground">
-								Review recent consent actions and audit trail entries.
+								Last {auditPreviewLimit} consent-related actions. Review the full
+								audit trail via the link below.
 							</p>
 						</div>
 						<Button variant="outline" asChild>

@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type JSX, useMemo, useState } from "react";
 
@@ -76,13 +78,26 @@ export function AuditLogPage(): JSX.Element {
 	return (
 		<div className="min-h-screen bg-gray-50 px-4 py-6 dark:bg-gray-950 md:px-8 md:py-10">
 			<div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-				<div className="flex flex-col gap-2">
-					<h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-						Audit Log
-					</h1>
+				<div className="flex flex-col gap-3">
+					<Button
+						variant="ghost"
+						size="icon"
+						asChild
+						className="h-9 w-9 shrink-0"
+						aria-label="Back to timeline"
+					>
+						<Link to="/">
+							<ArrowLeft className="h-4 w-4" />
+						</Link>
+					</Button>
+					<div className="flex flex-col gap-2">
+						<h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+							Audit Log
+						</h1>
 					<p className="text-sm text-muted-foreground">
 						Review the cryptographic audit trail for your account activity.
 					</p>
+					</div>
 				</div>
 
 				<AuditFilters

@@ -32,6 +32,7 @@ function SheetOverlay({
 	className,
 	...props
 }: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
+	// Keep overlay as plain dim only; do not add backdrop-blur so the outer area stays sharp.
 	return (
 		<SheetPrimitive.Overlay
 			data-slot="sheet-overlay"

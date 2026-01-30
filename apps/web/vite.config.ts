@@ -4,8 +4,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
-// Backend URL: Use 'backend' hostname in Docker, 'localhost' for local dev
-const backendUrl = process.env.BACKEND_URL || "http://localhost:8080";
+const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8080";
 
 // https://vite.dev/config/
 export default defineConfig({

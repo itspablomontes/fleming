@@ -316,33 +316,125 @@ export function HorizontalTimeline({
 		scrollToDate,
 	]);
 
-	// Keyboard navigation
-	useEffect(() => {
-		const handleKeyDown = (e: KeyboardEvent) => {
-			// Only handle if timeline has focus or purely document level navigation?
-			// For now, let's keep it safe and require focus or specific context
-			if (
-				document.activeElement === containerRef.current ||
-				document.body.contains(document.activeElement)
-			) {
-				// Allow navigation if body is focused or container is focused
-				// But avoid if in input/textarea (not relevant here yet)
+	// Keyboard navigation: first press = one step, then rAF-driven continuous pan/zoom
+	const keyRepeatRef = useRef<{
+		activeKey: string | null;
+		rafId: number | null;
+		timeoutId: ReturnType<typeof setTimeout> | null;
+		lastZoomTime: number;
+	}>({ activeKey: null, rafId: null, timeoutId: null, lastZoomTime: 0 });
 
-				if (e.key === "ArrowLeft") {
-					handleJumpPrev();
-				} else if (e.key === "ArrowRight") {
-					handleJumpNext();
-				} else if (e.key === "+" || e.key === "=") {
+	const clearKeyRepeat = useCallback(() => {
+		const r = keyRepeatRef.current;
+		if (r.timeoutId != null) {
+			clearTimeout(r.timeoutId);
+			r.timeoutId = null;
+		}
+		if (r.rafId != null) {
+			cancelAnimationFrame(r.rafId);
+			r.rafId = null;
+		}
+		r.activeKey = null;
+	}, []);
+
+	useEffect(() => {
+		const INITIAL_DELAY_MS = 300;
+		const PX_PER_FRAME = 8;
+		const ZOOM_THROTTLE_MS = 120;
+
+		const isEditable = (el: Element | null) => {
+			if (!el) return false;
+			const tag = (el as HTMLElement).tagName;
+			if (tag === "INPUT" || tag === "TEXTAREA") return true;
+			return (el as HTMLElement).isContentEditable;
+		};
+
+		const tick = () => {
+			const r = keyRepeatRef.current;
+			if (r.activeKey == null) return;
+			const container = containerRef.current;
+			const now = performance.now();
+
+			if (r.activeKey === "ArrowLeft") {
+				if (container)
+					container.scrollBy({ left: -PX_PER_FRAME, behavior: "auto" });
+			} else if (r.activeKey === "ArrowRight") {
+				if (container)
+					container.scrollBy({ left: PX_PER_FRAME, behavior: "auto" });
+			} else if (r.activeKey === "+" || r.activeKey === "=") {
+				if (now - r.lastZoomTime >= ZOOM_THROTTLE_MS) {
+					r.lastZoomTime = now;
 					handleZoomIn();
-				} else if (e.key === "-") {
+				}
+			} else if (r.activeKey === "-") {
+				if (now - r.lastZoomTime >= ZOOM_THROTTLE_MS) {
+					r.lastZoomTime = now;
 					handleZoomOut();
 				}
 			}
+
+			r.rafId = requestAnimationFrame(tick);
+		};
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (isEditable(document.activeElement)) return;
+			const key = e.key;
+			if (
+				key !== "ArrowLeft" &&
+				key !== "ArrowRight" &&
+				key !== "+" &&
+				key !== "=" &&
+				key !== "-"
+			)
+				return;
+
+			if (!e.repeat) {
+				e.preventDefault();
+				clearKeyRepeat();
+				if (key === "ArrowLeft") handleJumpPrev();
+				else if (key === "ArrowRight") handleJumpNext();
+				else if (key === "+" || key === "=") handleZoomIn();
+				else if (key === "-") handleZoomOut();
+
+				const r = keyRepeatRef.current;
+				r.activeKey = key;
+				r.lastZoomTime = performance.now();
+				r.timeoutId = setTimeout(() => {
+					r.timeoutId = null;
+					if (r.activeKey == null) return;
+					r.rafId = requestAnimationFrame(tick);
+				}, INITIAL_DELAY_MS);
+			}
+		};
+
+		const handleKeyUp = (e: KeyboardEvent) => {
+			const key = e.key;
+			if (
+				key === "ArrowLeft" ||
+				key === "ArrowRight" ||
+				key === "+" ||
+				key === "=" ||
+				key === "-"
+			) {
+				const r = keyRepeatRef.current;
+				if (r.activeKey === key) clearKeyRepeat();
+			}
+		};
+
+		const handleVisibility = () => {
+			if (document.visibilityState === "hidden") clearKeyRepeat();
 		};
 
 		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleJumpPrev, handleJumpNext, handleZoomIn, handleZoomOut]);
+		window.addEventListener("keyup", handleKeyUp);
+		document.addEventListener("visibilitychange", handleVisibility);
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown);
+			window.removeEventListener("keyup", handleKeyUp);
+			document.removeEventListener("visibilitychange", handleVisibility);
+			clearKeyRepeat();
+		};
+	}, [handleJumpPrev, handleJumpNext, handleZoomIn, handleZoomOut, clearKeyRepeat]);
 
 	// Drag to scroll handlers
 	const handleMouseDown = useCallback((e: React.MouseEvent) => {

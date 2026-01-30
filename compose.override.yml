@@ -19,7 +19,10 @@ services:
       context: ./apps/web
       dockerfile: Dockerfile
       target: builder
-    command: sh -c "pnpm config set store-dir /pnpm-store && pnpm install && pnpm dev --host"
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: sh -c "pnpm config set store-dir /pnpm-store && pnpm install && until wget -q -O - http://backend:8080/health >/dev/null 2>&1; do echo 'waiting for backend...'; sleep 1; done && pnpm dev --host"
     ports:
       - "${HOST_WEB_DEV_PORT:-5173}:5173"
     volumes:

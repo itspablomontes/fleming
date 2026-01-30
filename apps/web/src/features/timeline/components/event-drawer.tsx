@@ -228,7 +228,7 @@ export function EventDrawer({
 			<Sheet open={!!event} onOpenChange={(open) => !open && onClose()}>
 				<SheetContent
 					side="bottom"
-					className="h-[80vh] sm:h-[600px] p-0 gap-0 border-t-2 border-primary/20 bg-background/95 backdrop-blur-xl"
+					className="h-[80vh] sm:h-[600px] p-0 gap-0 border-t-2 border-primary/20 bg-background/95"
 				>
 					<div className="flex h-full flex-col">
 						{/* Header with Switch */}

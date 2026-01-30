@@ -1,16 +1,19 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Clock, Menu, NotebookText, ShieldCheck } from "lucide-react";
+import { Clock, LogOut, Menu, NotebookText, ShieldCheck } from "lucide-react";
 import type { JSX } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Sheet,
+	SheetClose,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
 	SheetTrigger,
 } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useMyConsentGrants } from "@/features/consent/hooks/use-consent-grants";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +46,7 @@ export function AppNavigation({
 	triggerClassName,
 }: AppNavigationProps): JSX.Element {
 	const location = useLocation();
+	const { isAuthenticated, logout } = useAuth();
 	const { data: grants } = useMyConsentGrants();
 	const pendingCount =
 		grants?.filter((grant) => grant.state === "requested").length ?? 0;
@@ -65,7 +69,7 @@ export function AppNavigation({
 						Jump to core areas of your Fleming timeline.
 					</SheetDescription>
 				</SheetHeader>
-				<div className="space-y-2 px-4 pb-6">
+				<div className="flex flex-1 flex-col gap-2 px-4 pb-6">
 					{navItems.map((item) => {
 						const isActive = location.pathname === item.to;
 						const Icon = item.icon;
@@ -101,6 +105,23 @@ export function AppNavigation({
 							</Button>
 						);
 					})}
+
+					{isAuthenticated ? (
+						<div className="mt-auto pt-4">
+							<Separator className="mb-2 opacity-60" />
+							<SheetClose asChild>
+								<Button
+									type="button"
+									variant="ghost"
+									className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
+									onClick={() => logout()}
+								>
+									<LogOut className="h-4 w-4" aria-hidden="true" />
+									Log out
+								</Button>
+							</SheetClose>
+						</div>
+					) : null}
 				</div>
 			</SheetContent>
 		</Sheet>

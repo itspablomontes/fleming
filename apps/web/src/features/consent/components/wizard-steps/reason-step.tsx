@@ -15,6 +15,9 @@ export function ReasonStep({ form }: ReasonStepProps): JSX.Element {
 				<div className="space-y-3">
 					<div className="space-y-2">
 						<Label htmlFor="reason">Reason (optional)</Label>
+						<p className="text-xs text-muted-foreground">
+							You can skip this step.
+						</p>
 						<textarea
 							id="reason"
 							value={field.state.value}
