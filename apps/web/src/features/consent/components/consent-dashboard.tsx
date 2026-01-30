@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { useMemo, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,7 @@ const consentStates: Array<{ value: ConsentState | "all"; label: string }> = [
 	{ value: "denied", label: "Denied" },
 	{ value: "revoked", label: "Revoked" },
 	{ value: "expired", label: "Expired" },
+	{ value: "suspended", label: "Suspended" },
 ];
 
 interface ConsentFilters {
@@ -83,6 +85,7 @@ const matchesFilters = (
 
 export function ConsentDashboard(): JSX.Element {
 	const [filters, setFilters] = useState<ConsentFilters>(defaultFilters);
+	const [filtersOpen, setFiltersOpen] = useState(false);
 
 	const myGrantsQuery = useMyConsentGrants();
 	const activeGrantsQuery = useActiveConsentGrants();
@@ -183,72 +186,91 @@ export function ConsentDashboard(): JSX.Element {
 					</Button>
 				</CardHeader>
 				<CardContent className="space-y-5">
-					<div className="grid gap-4 md:grid-cols-4">
-						<div className="space-y-2">
-							<Label htmlFor="consent-state-filter">State</Label>
-							<Select
-								value={filters.state}
-								onValueChange={(value) =>
-									setFilters((prev) => ({
-										...prev,
-										state: value as ConsentState | "all",
-									}))
-								}
-							>
-								<SelectTrigger id="consent-state-filter" className="w-full">
-									<SelectValue placeholder="All states" />
-								</SelectTrigger>
-								<SelectContent>
-									{consentStates.map((option) => (
-										<SelectItem key={option.value} value={option.value}>
-											{option.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="consent-search">Address</Label>
-							<Input
-								id="consent-search"
-								value={filters.search}
-								onChange={(event) =>
-									setFilters((prev) => ({
-										...prev,
-										search: event.target.value,
-									}))
-								}
-								placeholder="0x..."
-							/>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="consent-start">From</Label>
-							<Input
-								id="consent-start"
-								type="date"
-								value={filters.startDate}
-								onChange={(event) =>
-									setFilters((prev) => ({
-										...prev,
-										startDate: event.target.value,
-									}))
-								}
-							/>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="consent-end">To</Label>
-							<Input
-								id="consent-end"
-								type="date"
-								value={filters.endDate}
-								onChange={(event) =>
-									setFilters((prev) => ({
-										...prev,
-										endDate: event.target.value,
-									}))
-								}
-							/>
-						</div>
+					<div className="space-y-3">
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="flex items-center gap-2 -ml-2"
+							onClick={() => setFiltersOpen((open) => !open)}
+							aria-expanded={filtersOpen}
+						>
+							{filtersOpen ? (
+								<ChevronDown className="h-4 w-4" aria-hidden />
+							) : (
+								<ChevronRight className="h-4 w-4" aria-hidden />
+							)}
+							Filters
+						</Button>
+						{filtersOpen && (
+							<div className="grid gap-4 md:grid-cols-4">
+								<div className="space-y-2">
+									<Label htmlFor="consent-state-filter">State</Label>
+									<Select
+										value={filters.state}
+										onValueChange={(value) =>
+											setFilters((prev) => ({
+												...prev,
+												state: value as ConsentState | "all",
+											}))
+										}
+									>
+										<SelectTrigger id="consent-state-filter" className="w-full">
+											<SelectValue placeholder="All states" />
+										</SelectTrigger>
+										<SelectContent>
+											{consentStates.map((option) => (
+												<SelectItem key={option.value} value={option.value}>
+													{option.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="consent-search">Address</Label>
+									<Input
+										id="consent-search"
+										value={filters.search}
+										onChange={(event) =>
+											setFilters((prev) => ({
+												...prev,
+												search: event.target.value,
+											}))
+										}
+										placeholder="0x..."
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="consent-start">From</Label>
+									<Input
+										id="consent-start"
+										type="date"
+										value={filters.startDate}
+										onChange={(event) =>
+											setFilters((prev) => ({
+												...prev,
+												startDate: event.target.value,
+											}))
+										}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="consent-end">To</Label>
+									<Input
+										id="consent-end"
+										type="date"
+										value={filters.endDate}
+										onChange={(event) =>
+											setFilters((prev) => ({
+												...prev,
+												endDate: event.target.value,
+											}))
+										}
+									/>
+								</div>
+							</div>
+						)}
 					</div>
 
 					{hasError && (

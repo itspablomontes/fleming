@@ -118,9 +118,8 @@
   --muted-foreground: oklch(0.40 0.02 260);
   /* Readable but secondary */
 
-  /* Accent - Bio-green for highlights */
-  --accent: oklch(0.92 0.12 110);
-  /* Soft lime/yellow */
+  /* Accent - Soft teal for hovers/highlights (matches primary) */
+  --accent: oklch(0.92 0.06 200);
   --accent-foreground: oklch(0.12 0.02 260);
 
   /* Destructive */
@@ -168,7 +167,7 @@
 
   /* Glow effects (Light Mode) */
   --glow-primary: oklch(0.55 0.15 200 / 20%);
-  --glow-accent: oklch(0.92 0.12 110 / 20%);
+  --glow-accent: oklch(0.92 0.06 200 / 20%);
   --glow-success: oklch(0.60 0.16 150 / 15%);
 
   /* ===== EVENT TYPE COLORS (Light Mode) ===== */
@@ -278,10 +277,9 @@
   --muted-foreground: oklch(0.60 0.02 260);
   /* 60% brightness for muted text */
 
-  /* Accent - Lime/yellow for highlights */
-  --accent: oklch(0.88 0.18 110);
-  /* #e0f58f - Lime green */
-  --accent-foreground: oklch(0.12 0.02 260);
+  /* Accent - Subtle cyan for hovers/highlights (matches primary) */
+  --accent: oklch(0.22 0.04 190);
+  --accent-foreground: oklch(0.90 0.01 260);
 
   /* Destructive - Error/Revoked states */
   --destructive: oklch(0.65 0.22 25);
@@ -339,7 +337,7 @@
 
   /* Glow effects (Dark Mode) */
   --glow-primary: oklch(0.80 0.18 190 / 30%);
-  --glow-accent: oklch(0.88 0.18 110 / 30%);
+  --glow-accent: oklch(0.80 0.18 190 / 25%);
   --glow-success: oklch(0.72 0.19 155 / 25%);
 
   /* ===== EVENT TYPE COLORS (Dark Mode) ===== */

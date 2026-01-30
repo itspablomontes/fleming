@@ -32,23 +32,16 @@ export function TimelineMinimap({
 		Math.min(100, (viewportWidth / totalWidth) * 100),
 	);
 
-	// Simple drag handler for viewport indicator
+	// Drag handler: pass center position (0–1); clamp to track so drag-to-end works.
 	const handleMouseDown = (e: React.MouseEvent) => {
 		const track = trackRef.current;
 		if (!track) return;
 
-		const maxLeftPct = Math.max(0, 100 - viewportWidthPct);
-		const halfViewportPct = viewportWidthPct / 2;
-
 		const updatePosition = (clientX: number) => {
 			const rect = track.getBoundingClientRect();
-			const clickX = clientX - rect.left;
+			const clickX = Math.max(0, Math.min(rect.width, clientX - rect.left));
 			const clickPct = (clickX / rect.width) * 100;
-			const centeredPct = Math.max(
-				0,
-				Math.min(maxLeftPct, clickPct - halfViewportPct),
-			);
-			onScroll(centeredPct / 100);
+			onScroll(clickPct / 100);
 		};
 
 		updatePosition(e.clientX);
@@ -67,18 +60,11 @@ export function TimelineMinimap({
 	};
 
 	const handleTrackClick = (e: React.MouseEvent) => {
-		// Jump to clicked position
 		if (!trackRef.current) return;
 		const rect = trackRef.current.getBoundingClientRect();
-		const clickX = e.clientX - rect.left;
+		const clickX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
 		const clickPct = (clickX / rect.width) * 100;
-		const maxLeftPct = Math.max(0, 100 - viewportWidthPct);
-		const halfViewportPct = viewportWidthPct / 2;
-		const centeredPct = Math.max(
-			0,
-			Math.min(maxLeftPct, clickPct - halfViewportPct),
-		);
-		onScroll(centeredPct / 100);
+		onScroll(clickPct / 100);
 	};
 
 	return (

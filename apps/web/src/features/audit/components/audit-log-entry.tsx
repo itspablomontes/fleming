@@ -1,7 +1,11 @@
 import type { JSX } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AuditLogEntry } from "../types";
+import {
+	formatAuditAction,
+	formatAuditResourceType,
+	type AuditLogEntry,
+} from "../types";
 
 interface AuditLogEntryProps {
 	entry: AuditLogEntry;
@@ -15,10 +19,10 @@ export function AuditLogEntryCard({ entry }: AuditLogEntryProps): JSX.Element {
 			<CardHeader className="flex flex-row items-start justify-between gap-4">
 				<div className="space-y-1">
 					<CardTitle className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-						{entry.action}
+						{formatAuditAction(entry.action)}
 					</CardTitle>
 					<p className="text-xs text-muted-foreground">
-						{entry.resourceType} • {entry.resourceId}
+						{formatAuditResourceType(entry.resourceType)} • {entry.resourceId}
 					</p>
 				</div>
 				<Badge variant="secondary" className="text-xs">

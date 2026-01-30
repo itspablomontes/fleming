@@ -13,6 +13,7 @@ export const ConsentState = {
 	Denied: "denied",
 	Revoked: "revoked",
 	Expired: "expired",
+	Suspended: "suspended",
 } as const;
 
 export type ConsentState = (typeof ConsentState)[keyof typeof ConsentState];
@@ -26,6 +27,7 @@ export const CONSENT_STATE_LABELS: Record<ConsentState, string> = {
 	denied: "Denied",
 	revoked: "Revoked",
 	expired: "Expired",
+	suspended: "Suspended",
 };
 
 /**
@@ -40,6 +42,7 @@ export const CONSENT_STATE_VARIANTS: Record<
 	denied: "secondary",
 	revoked: "destructive",
 	expired: "secondary",
+	suspended: "warning",
 };
 
 /**
