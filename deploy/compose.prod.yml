@@ -30,6 +30,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       # Auth
       - JWT_SECRET=${JWT_SECRET}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN}
       # Storage (Cloudflare R2)
       - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
       - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
