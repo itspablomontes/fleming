@@ -98,7 +98,7 @@ func main() {
 
 	// Clean up existing data (order matters due to foreign keys)
 	log.Println("Cleaning up existing data...")
-	
+
 	// Use GORM models for safer deletion (handles missing tables gracefully)
 	if err := db.Where("1 = 1").Delete(&timeline.EventFileAccess{}).Error; err != nil {
 		// Ignore "relation does not exist" errors
@@ -145,7 +145,7 @@ func main() {
 
 	auditService := audit.NewService(auditRepo)
 	consentService := consent.NewService(consentRepo, auditService)
-	timelineService := timeline.NewService(timelineRepo, auditService, storageService)
+	timelineService := timeline.NewService(timelineRepo, auditService, storageService, "fleming")
 
 	// Mock Data Constants
 	patientId := "0x742d35Cc6634C0532925a3b844Bc9e7595f"
@@ -476,12 +476,12 @@ func main() {
 
 	// Print summary JSON
 	summary := map[string]interface{}{
-		"events":      eventCount,
-		"edges":       edgeCount,
-		"consents":    consentCount,
-		"auditLogs":   auditCount,
-		"patientId":   patientId,
-		"doctors":     []string{doctor1, doctor2, doctor3},
+		"events":    eventCount,
+		"edges":     edgeCount,
+		"consents":  consentCount,
+		"auditLogs": auditCount,
+		"patientId": patientId,
+		"doctors":   []string{doctor1, doctor2, doctor3},
 	}
 	summaryJson, _ := json.MarshalIndent(summary, "", "  ")
 	fmt.Println(string(summaryJson))

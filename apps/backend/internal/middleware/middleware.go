@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
 	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
 )
 
 func AuthMiddleware(authService *auth.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		env := os.Getenv("ENV")
+		env := config.NormalizeEnv(os.Getenv("ENV"))
 		overrideAddress := os.Getenv("DEV_OVERRIDE_WALLET_ADDRESS")
 		if env == "dev" && overrideAddress != "" {
 			slog.Debug("auth: using dev override", "address", overrideAddress)
