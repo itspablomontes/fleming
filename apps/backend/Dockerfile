@@ -6,7 +6,7 @@ WORKDIR /workspace
 RUN apk add --no-cache ca-certificates git curl
 
 # Copy go.work and module files first for better caching
-COPY go.work go.work.sum ./
+
 COPY apps/backend/go.mod apps/backend/go.sum ./apps/backend/
 COPY pkg/go.mod pkg/go.sum ./pkg/
 
