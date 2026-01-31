@@ -116,19 +116,8 @@ From a UX perspective, this is presented as a secure, passwordless sign-in — n
 - **Storage:** Postgres + S3-compatible object storage
 - **Encryption:** AES-GCM + public-key cryptography
 - **Blockchain:** Solidity contracts for consent anchoring (no medical data on-chain)
-- **Deployment:** Docker Compose
 
 Everything is configuration-driven and replaceable.
-
----
-
-## Self-Hosting
-
-Fleming is designed to be self-hostable.
-
-The same system that powers the hosted version can be run locally or on private infrastructure using Docker Compose. No SaaS dependencies, no feature gating, no forks.
-
-Self-hosting is not an afterthought — it is an architectural constraint.
 
 ---
 
