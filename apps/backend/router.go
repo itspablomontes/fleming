@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
@@ -17,6 +18,7 @@ import (
 	"github.com/itspablomontes/fleming/apps/backend/internal/middleware"
 	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	"github.com/itspablomontes/fleming/apps/backend/internal/timeline"
+	protocolchain "github.com/itspablomontes/fleming/pkg/protocol/chain"
 	"gorm.io/gorm"
 )
 
@@ -58,6 +60,39 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	auditRepo := audit.NewRepository(db)
 	consentRepo := consent.NewRepository(db)
 	timelineRepo := timeline.NewRepository(db)
+
+	// Optional: on-chain anchoring (disabled unless fully configured).
+	var chainClient *protocolchain.Client
+	anchorRPCURL := strings.TrimSpace(os.Getenv("ANCHOR_RPC_URL"))
+	if anchorRPCURL == "" && env == "dev" {
+		// In local docker-compose dev, the backend container can reach Anvil by service name.
+		anchorRPCURL = "http://anvil:8545"
+	}
+	anchorContractAddress := strings.TrimSpace(os.Getenv("ANCHOR_CONTRACT_ADDRESS"))
+	anchorPrivateKey := strings.TrimSpace(os.Getenv("ANCHOR_PRIVATE_KEY"))
+	if anchorRPCURL != "" && anchorContractAddress != "" && anchorPrivateKey != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		c, err := protocolchain.NewClient(ctx, protocolchain.Config{
+			RPCURL:          anchorRPCURL,
+			ContractAddress: anchorContractAddress,
+			PrivateKey:      anchorPrivateKey,
+		})
+		if err != nil {
+			slog.Error("chain anchoring disabled: failed to initialize", "error", err)
+		} else {
+			chainClient = c
+			slog.Info("chain anchoring enabled", "rpcUrl", anchorRPCURL, "contractAddress", anchorContractAddress)
+		}
+	} else {
+		slog.Info(
+			"chain anchoring disabled (missing env vars)",
+			"hasRpcUrl", anchorRPCURL != "",
+			"hasContractAddress", anchorContractAddress != "",
+			"hasPrivateKey", anchorPrivateKey != "",
+		)
+	}
 
 	storageEndpointRaw := firstNonEmpty(os.Getenv("STORAGE_ENDPOINT"), os.Getenv("S3_ENDPOINT"))
 	storageAccessKey := firstNonEmpty(os.Getenv("STORAGE_ACCESS_KEY"), os.Getenv("S3_ACCESS_KEY"))
@@ -127,9 +162,18 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	timelineService := timeline.NewService(timelineRepo, auditService, storageService, storageBucket)
 
 	authService.StartCleanup(context.Background())
+	if os.Getenv("ENABLE_MERKLE_AUTO_ANCHOR") == "true" && chainClient != nil {
+		scheduler, err := audit.NewAnchorScheduler(auditRepo, auditService, chainClient)
+		if err != nil {
+			slog.Error("audit: failed to initialize auto-anchor scheduler", "error", err)
+		} else {
+			scheduler.Start(context.Background())
+			slog.Info("audit: auto-anchor scheduler started")
+		}
+	}
 
 	authHandler := auth.NewHandler(authService)
-	auditHandler := audit.NewHandler(auditService)
+	auditHandler := audit.NewHandler(auditService, chainClient)
 	consentHandler := consent.NewHandler(consentService)
 	timelineHandler := timeline.NewHandler(timelineService)
 

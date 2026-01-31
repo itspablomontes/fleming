@@ -21,16 +21,25 @@ func (m *MockAuditService) GetLatestEntries(ctx context.Context, actor string, l
 func (m *MockAuditService) VerifyIntegrity(ctx context.Context) (bool, error) {
 	return true, nil
 }
-func (m *MockAuditService) BuildMerkleTree(ctx context.Context, startTime time.Time, endTime time.Time) (*internalAudit.AuditBatch, *audit.MerkleTree, error) {
+func (m *MockAuditService) BuildMerkleTree(ctx context.Context, actor string, startTime time.Time, endTime time.Time) (*internalAudit.AuditBatch, *audit.MerkleTree, error) {
 	return nil, nil, nil
 }
-func (m *MockAuditService) GetMerkleRoot(ctx context.Context, batchID string) (string, error) {
-	return "", nil
+func (m *MockAuditService) GetBatch(ctx context.Context, actor string, batchID string) (*internalAudit.AuditBatch, error) {
+	return nil, nil
+}
+func (m *MockAuditService) ListBatches(ctx context.Context, actor string, limit int, offset int) ([]internalAudit.AuditBatch, error) {
+	return nil, nil
+}
+func (m *MockAuditService) AnchorBatch(ctx context.Context, actor string, batchID string, chainClient internalAudit.ChainAnchorer) (*internalAudit.AuditBatch, error) {
+	return nil, nil
+}
+func (m *MockAuditService) GetBatchByRoot(ctx context.Context, actor string, rootHash string) (*internalAudit.AuditBatch, error) {
+	return nil, nil
 }
 func (m *MockAuditService) VerifyMerkleProof(root string, entryHash string, proof *audit.Proof) bool {
 	return true
 }
-func (m *MockAuditService) GetEntriesForMerkle(ctx context.Context, startTime time.Time, endTime time.Time) ([]internalAudit.AuditEntry, error) {
+func (m *MockAuditService) GetEntriesForMerkle(ctx context.Context, actor string, startTime time.Time, endTime time.Time) ([]internalAudit.AuditEntry, error) {
 	return nil, nil
 }
 func (m *MockAuditService) GetEntryByID(ctx context.Context, id string) (*internalAudit.AuditEntry, error) {

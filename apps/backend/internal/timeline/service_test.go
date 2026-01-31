@@ -27,16 +27,25 @@ func (m *MockAuditService) GetLatestEntries(ctx context.Context, actor string, l
 func (m *MockAuditService) VerifyIntegrity(ctx context.Context) (bool, error) {
 	return true, nil
 }
-func (m *MockAuditService) BuildMerkleTree(ctx context.Context, startTime time.Time, endTime time.Time) (*audit.AuditBatch, *protocol.MerkleTree, error) {
+func (m *MockAuditService) BuildMerkleTree(ctx context.Context, actor string, startTime time.Time, endTime time.Time) (*audit.AuditBatch, *protocol.MerkleTree, error) {
 	return nil, nil, nil
 }
-func (m *MockAuditService) GetMerkleRoot(ctx context.Context, batchID string) (string, error) {
-	return "", nil
+func (m *MockAuditService) GetBatch(ctx context.Context, actor string, batchID string) (*audit.AuditBatch, error) {
+	return nil, nil
+}
+func (m *MockAuditService) ListBatches(ctx context.Context, actor string, limit int, offset int) ([]audit.AuditBatch, error) {
+	return nil, nil
+}
+func (m *MockAuditService) AnchorBatch(ctx context.Context, actor string, batchID string, chainClient audit.ChainAnchorer) (*audit.AuditBatch, error) {
+	return nil, nil
+}
+func (m *MockAuditService) GetBatchByRoot(ctx context.Context, actor string, rootHash string) (*audit.AuditBatch, error) {
+	return nil, nil
 }
 func (m *MockAuditService) VerifyMerkleProof(root string, entryHash string, proof *protocol.Proof) bool {
 	return true
 }
-func (m *MockAuditService) GetEntriesForMerkle(ctx context.Context, startTime time.Time, endTime time.Time) ([]audit.AuditEntry, error) {
+func (m *MockAuditService) GetEntriesForMerkle(ctx context.Context, actor string, startTime time.Time, endTime time.Time) ([]audit.AuditEntry, error) {
 	return nil, nil
 }
 func (m *MockAuditService) GetEntryByID(ctx context.Context, id string) (*audit.AuditEntry, error) {
@@ -172,14 +181,18 @@ func (m *MockRepo) GetFileByID(ctx context.Context, id string) (*EventFile, erro
 func (m *MockRepo) GetFilesByEventID(ctx context.Context, eventID string) ([]EventFile, error) {
 	return nil, nil
 }
-func (m *MockRepo) UpsertFileAccess(ctx context.Context, confirmations *EventFileAccess) error { return nil }
+func (m *MockRepo) UpsertFileAccess(ctx context.Context, confirmations *EventFileAccess) error {
+	return nil
+}
 func (m *MockRepo) GetFileAccess(ctx context.Context, fileID string, grantee string) (*EventFileAccess, error) {
 	return nil, nil
 }
 func (m *MockRepo) GetGraphData(ctx context.Context, patientID string) ([]TimelineEvent, []EventEdge, error) {
 	return []TimelineEvent{}, []EventEdge{}, nil
 }
-func (m *MockRepo) Transaction(ctx context.Context, fn func(repo Repository) error) error { return fn(m) }
+func (m *MockRepo) Transaction(ctx context.Context, fn func(repo Repository) error) error {
+	return fn(m)
+}
 
 func TestService_CreateEvent(t *testing.T) {
 	repo := &MockRepo{}
