@@ -12,7 +12,8 @@ import {
 } from "../components/audit-filters";
 import { AuditLogViewer } from "../components/audit-log-viewer";
 import { IntegrityStatus } from "../components/integrity-status";
-import { MerkleProofViewer } from "../components/merkle-proof-viewer";
+import { MerkleBatchManager } from "../components/merkle-batch-manager";
+import { VerifyRootWidget } from "../components/verify-root-widget";
 
 const defaultFilters: AuditFilterState = {
 	actor: "",
@@ -128,7 +129,10 @@ export function AuditLogPage(): JSX.Element {
 					</div>
 				</div>
 
-				<MerkleProofViewer />
+				<div className="grid gap-4 md:grid-cols-2">
+					<MerkleBatchManager />
+					<VerifyRootWidget />
+				</div>
 
 				<AuditLogViewer
 					entries={auditQuery.data ?? []}
