@@ -4,6 +4,7 @@
  * Creates a relationship between two timeline events.
  */
 
+import { API_URL } from "@/lib/api-client";
 import type { LinkResponse, RelationshipType } from "../types";
 
 const API_BASE = "/api/timeline";
@@ -21,7 +22,7 @@ export async function linkEvents(
 	params: LinkEventsParams,
 ): Promise<LinkResponse> {
 	const response = await fetch(
-		`${API_BASE}/events/${params.fromEventId}/link`,
+		`${API_URL}${API_BASE}/events/${params.fromEventId}/link`,
 		{
 			method: "POST",
 			credentials: "include",
@@ -48,7 +49,7 @@ export async function linkEvents(
 export async function unlinkEvents(
 	edgeId: string,
 ): Promise<{ success: boolean }> {
-	const response = await fetch(`${API_BASE}/edges/${edgeId}`, {
+	const response = await fetch(`${API_URL}${API_BASE}/edges/${edgeId}`, {
 		method: "DELETE",
 		credentials: "include",
 	});

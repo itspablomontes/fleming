@@ -4,6 +4,7 @@
  * Fetches all events and edges for the authenticated patient's timeline graph.
  */
 
+import { API_URL } from "@/lib/api-client";
 import type { GraphData } from "../types";
 
 const API_BASE = "/api/timeline";
@@ -12,7 +13,7 @@ const API_BASE = "/api/timeline";
  * Fetch graph data from the API.
  */
 export async function getGraphData(): Promise<GraphData> {
-	const response = await fetch(`${API_BASE}/graph`, {
+	const response = await fetch(`${API_URL}${API_BASE}/graph`, {
 		method: "GET",
 		credentials: "include",
 		headers: {

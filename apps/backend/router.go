@@ -23,6 +23,24 @@ import (
 func NewRouter(db *gorm.DB) *gin.Engine {
 	r := gin.Default()
 
+	// Enable CORS
+	r.Use(func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+		if origin != "" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	})
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	env := config.NormalizeEnv(os.Getenv("ENV"))
 	if jwtSecret == "" {
