@@ -1,3 +1,5 @@
+export const API_URL = import.meta.env.VITE_API_URL || "";
+
 export const apiClient = async (
 	endpoint: string,
 	{
@@ -24,7 +26,7 @@ export const apiClient = async (
 		config.body = isFormData ? body : JSON.stringify(body);
 	}
 
-	const response = await fetch(endpoint, config);
+	const response = await fetch(`${API_URL}${endpoint}`, config);
 
 	if (!response.ok) {
 		const errorMessage = await response.text();

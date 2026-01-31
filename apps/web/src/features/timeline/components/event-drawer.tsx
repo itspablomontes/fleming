@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useVault } from "@/features/auth/contexts/vault-context";
+import { API_URL } from "@/lib/api-client";
 import {
 	decryptChunkedBuffer,
 	decryptFile,
@@ -108,7 +109,7 @@ export function EventDrawer({
 
 				// 2. Fetch encrypted file content
 				const response = await fetch(
-					`/api/timeline/events/${event.id}/files/${file.id}?patientId=${event.patientId}`,
+					`${API_URL}/api/timeline/events/${event.id}/files/${file.id}?patientId=${event.patientId}`,
 					{ credentials: "include" },
 				);
 				if (!response.ok) {

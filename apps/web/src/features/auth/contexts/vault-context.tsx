@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useConnection, useSignMessage } from "wagmi";
+import { API_URL } from "@/lib/api-client";
 import { deriveMasterKey } from "@/lib/crypto/keys";
 
 // User salt is fetched from backend profile
@@ -47,7 +48,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Fetch User Salt from Backend
       // The salt is permanently bound to the user's account in the backend DB.
-      const response = await fetch("/api/auth/me");
+      const response = await fetch(`${API_URL}/api/auth/me`);
       if (!response.ok) throw new Error("Failed to fetch user profile");
       
       const data = await response.json();

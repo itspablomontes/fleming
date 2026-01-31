@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client";
+import { API_URL, apiClient } from "@/lib/api-client";
 
 export interface MultipartStartPayload {
   eventId: string;
@@ -45,7 +45,7 @@ export const uploadMultipartPart = async (
   formData.append("part", payload.part);
 
   const response = await fetch(
-    `/api/timeline/events/${payload.eventId}/files/multipart/part`,
+    `${API_URL}/api/timeline/events/${payload.eventId}/files/multipart/part`,
     {
       method: "PUT",
       body: formData,
