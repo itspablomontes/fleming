@@ -71,22 +71,20 @@ func (h *Handler) HandleLogin(c *gin.Context) {
 	}
 
 	secure := config.IsProduction(os.Getenv("ENV"))
-	if secure {
-		c.SetSameSite(http.SameSiteNoneMode)
-	}
-	c.SetCookie("auth_token", token, 3600*24, "/", "", secure, true)
-	c.SetCookie("fleming_has_session", "true", 3600*24, "/", "", secure, false)
+	cookieDomain := os.Getenv("COOKIE_DOMAIN") // e.g., ".usefleming.com" for cross-subdomain
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("auth_token", token, 3600*24, "/", cookieDomain, secure, true)
+	c.SetCookie("fleming_has_session", "true", 3600*24, "/", cookieDomain, secure, false)
 
 	c.JSON(http.StatusOK, LoginResponse{Success: true})
 }
 
 func (h *Handler) HandleLogout(c *gin.Context) {
 	secure := config.IsProduction(os.Getenv("ENV"))
-	if secure {
-		c.SetSameSite(http.SameSiteNoneMode)
-	}
-	c.SetCookie("auth_token", "", -1, "/", "", secure, true)
-	c.SetCookie("fleming_has_session", "", -1, "/", "", secure, false)
+	cookieDomain := os.Getenv("COOKIE_DOMAIN")
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("auth_token", "", -1, "/", cookieDomain, secure, true)
+	c.SetCookie("fleming_has_session", "", -1, "/", cookieDomain, secure, false)
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
