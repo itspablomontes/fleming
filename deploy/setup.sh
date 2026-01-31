@@ -18,13 +18,24 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# 2. Pull latest images
-echo "📥 Pulling latest images..."
-docker compose -f compose.prod.yml pull
+# 2. Determine Docker Compose command
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE="docker compose"
+elif docker-compose version >/dev/null 2>&1; then
+    COMPOSE="docker-compose"
+else
+    echo "❌ Error: Docker Compose not found!"
+    echo "Please install it: sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose"
+    exit 1
+fi
 
-# 3. Restart services
+# 3. Pull latest images
+echo "📥 Pulling latest images..."
+$COMPOSE -f compose.prod.yml pull
+
+# 4. Restart services
 echo "🔄 Restarting services..."
-docker compose -f compose.prod.yml up -d --remove-orphans
+$COMPOSE -f compose.prod.yml up -d --remove-orphans
 
 echo "✅ Deployment Complete!"
 echo "---------------------------------------------------"
