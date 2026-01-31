@@ -2,13 +2,17 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
 	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
+	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
 	"github.com/itspablomontes/fleming/apps/backend/internal/middleware"
 	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
@@ -20,9 +24,9 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	r := gin.Default()
 
 	jwtSecret := os.Getenv("JWT_SECRET")
-	env := os.Getenv("ENV")
+	env := config.NormalizeEnv(os.Getenv("ENV"))
 	if jwtSecret == "" {
-		if env == "production" || env == "staging" {
+		if config.IsProductionLike(env) {
 			slog.Error("JWT_SECRET is required in production/staging environments")
 			os.Exit(1)
 		}
@@ -37,20 +41,60 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	consentRepo := consent.NewRepository(db)
 	timelineRepo := timeline.NewRepository(db)
 
-	storageEndpoint := os.Getenv("STORAGE_ENDPOINT")
-	storageAccessKey := os.Getenv("STORAGE_ACCESS_KEY")
-	storageSecretKey := os.Getenv("STORAGE_SECRET_KEY")
-	storageUseSSL := os.Getenv("STORAGE_USE_SSL") == "true"
+	storageEndpointRaw := firstNonEmpty(os.Getenv("STORAGE_ENDPOINT"), os.Getenv("S3_ENDPOINT"))
+	storageAccessKey := firstNonEmpty(os.Getenv("STORAGE_ACCESS_KEY"), os.Getenv("S3_ACCESS_KEY"))
+	storageSecretKey := firstNonEmpty(os.Getenv("STORAGE_SECRET_KEY"), os.Getenv("S3_SECRET_KEY"))
+	storageBucket := firstNonEmpty(os.Getenv("STORAGE_BUCKET"), os.Getenv("S3_BUCKET"))
 
-	if storageEndpoint == "" {
-		slog.Warn("STORAGE_ENDPOINT not set, using default minio:9000")
-		storageEndpoint = "localhost:9000"
+	storageUseSSLStr := firstNonEmpty(os.Getenv("STORAGE_USE_SSL"), os.Getenv("S3_SSL"))
+	storageUseSSL, hasStorageUseSSL, err := parseOptionalBool(storageUseSSLStr)
+	if err != nil {
+		slog.Error("Invalid STORAGE_USE_SSL/S3_SSL value", "value", storageUseSSLStr, "error", err)
+		os.Exit(1)
+	}
+
+	if storageEndpointRaw == "" {
+		if config.IsProductionLike(env) {
+			slog.Error("STORAGE_ENDPOINT (or S3_ENDPOINT) is required in production/staging")
+			os.Exit(1)
+		}
+		slog.Warn("STORAGE_ENDPOINT not set; defaulting to localhost:9000 for development")
+		storageEndpointRaw = "localhost:9000"
 	}
 	if storageAccessKey == "" {
+		if config.IsProductionLike(env) {
+			slog.Error("STORAGE_ACCESS_KEY (or S3_ACCESS_KEY) is required in production/staging")
+			os.Exit(1)
+		}
 		storageAccessKey = "minioadmin"
 	}
 	if storageSecretKey == "" {
+		if config.IsProductionLike(env) {
+			slog.Error("STORAGE_SECRET_KEY (or S3_SECRET_KEY) is required in production/staging")
+			os.Exit(1)
+		}
 		storageSecretKey = "minioadmin"
+	}
+	if storageBucket == "" {
+		if config.IsProductionLike(env) {
+			slog.Error("STORAGE_BUCKET (or S3_BUCKET) is required in production/staging")
+			os.Exit(1)
+		}
+		storageBucket = "fleming-blobs"
+	}
+
+	storageEndpoint, inferredSSL, err := normalizeStorageEndpoint(storageEndpointRaw)
+	if err != nil {
+		slog.Error("Invalid STORAGE_ENDPOINT/S3_ENDPOINT", "value", storageEndpointRaw, "error", err)
+		os.Exit(1)
+	}
+	if !hasStorageUseSSL {
+		if inferredSSL != nil {
+			storageUseSSL = *inferredSSL
+		} else if config.IsProductionLike(env) {
+			slog.Error("STORAGE_USE_SSL (or S3_SSL) is required in production/staging when endpoint has no scheme")
+			os.Exit(1)
+		}
 	}
 
 	storageService, err := storage.NewMinIOStorage(storageEndpoint, storageAccessKey, storageSecretKey, storageUseSSL)
@@ -62,7 +106,7 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	auditService := audit.NewService(auditRepo)
 	consentService := consent.NewService(consentRepo, auditService)
 	authService := auth.NewService(authRepo, jwtSecret, auditService)
-	timelineService := timeline.NewService(timelineRepo, auditService, storageService)
+	timelineService := timeline.NewService(timelineRepo, auditService, storageService, storageBucket)
 
 	authService.StartCleanup(context.Background())
 
@@ -95,4 +139,50 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	timelineHandler.RegisterRoutes(timelineGroup)
 
 	return r
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func parseOptionalBool(v string) (value bool, ok bool, err error) {
+	if strings.TrimSpace(v) == "" {
+		return false, false, nil
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "true", "1", "yes", "y":
+		return true, true, nil
+	case "false", "0", "no", "n":
+		return false, true, nil
+	default:
+		return false, false, fmt.Errorf("invalid boolean %q", v)
+	}
+}
+
+// normalizeStorageEndpoint accepts either a host[:port] (recommended) or an http(s) URL.
+// It returns the host[:port] suitable for minio-go, plus an inferred TLS value when a scheme was provided.
+func normalizeStorageEndpoint(raw string) (hostPort string, inferredSSL *bool, err error) {
+	r := strings.TrimSpace(raw)
+	if r == "" {
+		return "", nil, fmt.Errorf("empty endpoint")
+	}
+
+	if strings.HasPrefix(r, "http://") || strings.HasPrefix(r, "https://") {
+		u, err := url.Parse(r)
+		if err != nil {
+			return "", nil, fmt.Errorf("parse url: %w", err)
+		}
+		if u.Host == "" {
+			return "", nil, fmt.Errorf("missing host in %q", r)
+		}
+		ssl := u.Scheme == "https"
+		return u.Host, &ssl, nil
+	}
+
+	return r, nil, nil
 }

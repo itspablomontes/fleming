@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -13,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	api "github.com/itspablomontes/fleming/apps/backend"
+	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
 	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
 	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
@@ -20,18 +24,25 @@ import (
 )
 
 func main() {
+	env := config.NormalizeEnv(os.Getenv("ENV"))
+	logLevel := slog.LevelDebug
+	if config.IsProductionLike(env) {
+		logLevel = slog.LevelInfo
+	}
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+		Level: logLevel,
 	})))
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		slog.Warn("DATABASE_URL not set")
+		slog.Error("DATABASE_URL not set")
+		os.Exit(1)
 	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		slog.Warn("PORT not set")
+		port = "8080"
+		slog.Warn("PORT not set; defaulting to 8080")
 	}
 
 	db, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{})
@@ -52,6 +63,9 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("database connected")
+
+	// Connection pool tuning (important for serverless Postgres like Neon).
+	applyConnPoolSettings(sqlDB, env)
 
 	if err := db.AutoMigrate(
 		&auth.Challenge{},
@@ -96,4 +110,88 @@ func main() {
 	}
 
 	slog.Info("server exiting")
+}
+
+func applyConnPoolSettings(sqlDB *sql.DB, env string) {
+	// Defaults only for prod-like environments to reduce accidental connection storms.
+	defaultMaxOpen := 5
+	defaultMaxIdle := 2
+	defaultMaxLifetime := 30 * time.Minute
+
+	maxOpen, maxOpenSet, err := getOptionalIntEnv("DB_MAX_OPEN_CONNS")
+	if err != nil {
+		slog.Error("invalid DB_MAX_OPEN_CONNS", "error", err)
+		os.Exit(1)
+	}
+	maxIdle, maxIdleSet, err := getOptionalIntEnv("DB_MAX_IDLE_CONNS")
+	if err != nil {
+		slog.Error("invalid DB_MAX_IDLE_CONNS", "error", err)
+		os.Exit(1)
+	}
+	maxLifetime, maxLifetimeSet, err := getOptionalDurationEnv("DB_CONN_MAX_LIFETIME")
+	if err != nil {
+		slog.Error("invalid DB_CONN_MAX_LIFETIME", "error", err)
+		os.Exit(1)
+	}
+
+	if config.IsProductionLike(env) {
+		if !maxOpenSet {
+			maxOpen, maxOpenSet = defaultMaxOpen, true
+		}
+		if !maxIdleSet {
+			maxIdle, maxIdleSet = defaultMaxIdle, true
+		}
+		if !maxLifetimeSet {
+			maxLifetime, maxLifetimeSet = defaultMaxLifetime, true
+		}
+	}
+
+	if maxOpenSet {
+		sqlDB.SetMaxOpenConns(maxOpen)
+	}
+	if maxIdleSet {
+		sqlDB.SetMaxIdleConns(maxIdle)
+	}
+	if maxLifetimeSet {
+		sqlDB.SetConnMaxLifetime(maxLifetime)
+	}
+
+	if maxOpenSet || maxIdleSet || maxLifetimeSet {
+		slog.Info(
+			"db pool configured",
+			"maxOpenConns", sqlDB.Stats().MaxOpenConnections,
+			"maxIdleConns", maxIdle,
+			"connMaxLifetime", maxLifetime.String(),
+		)
+	}
+}
+
+func getOptionalIntEnv(key string) (value int, ok bool, err error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return 0, false, nil
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, false, fmt.Errorf("%s must be an integer: %w", key, err)
+	}
+	if v < 0 {
+		return 0, false, fmt.Errorf("%s must be >= 0", key)
+	}
+	return v, true, nil
+}
+
+func getOptionalDurationEnv(key string) (value time.Duration, ok bool, err error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return 0, false, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, false, fmt.Errorf("%s must be a Go duration (e.g. 30m, 1h): %w", key, err)
+	}
+	if d < 0 {
+		return 0, false, fmt.Errorf("%s must be >= 0", key)
+	}
+	return d, true, nil
 }

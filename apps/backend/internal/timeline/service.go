@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
@@ -51,13 +52,20 @@ type service struct {
 	repo         Repository
 	auditService audit.Service
 	storage      storage.Storage
+	bucketName   string
 }
 
-func NewService(repo Repository, auditService audit.Service, storage storage.Storage) Service {
+func NewService(repo Repository, auditService audit.Service, storage storage.Storage, bucketName string) Service {
+	bucketName = strings.TrimSpace(bucketName)
+	if bucketName == "" {
+		// Avoid silently writing to an unexpected bucket.
+		bucketName = "fleming"
+	}
 	return &service{
 		repo:         repo,
 		auditService: auditService,
 		storage:      storage,
+		bucketName:   bucketName,
 	}
 }
 
@@ -394,7 +402,7 @@ func (s *service) GetGraphData(ctx context.Context, patientID string) (*GraphDat
 }
 
 func (s *service) UploadFile(ctx context.Context, eventID string, fileName string, contentType string, reader io.Reader, size int64, wrappedDEK []byte, metadata common.JSONMap) (*EventFile, error) {
-	blobRef, err := s.storage.Put(ctx, "fleming-blobs", fileName, reader, size, contentType)
+	blobRef, err := s.storage.Put(ctx, s.bucketName, fileName, reader, size, contentType)
 	if err != nil {
 		return nil, fmt.Errorf("storage put: %w", err)
 	}
@@ -416,10 +424,10 @@ func (s *service) UploadFile(ctx context.Context, eventID string, fileName strin
 	eventIDTyped, _ := types.NewID(eventID)
 	if event, err := s.repo.GetEvent(ctx, eventIDTyped); err == nil && event != nil {
 		auditMetadata := common.JSONMap{
-			"eventId":   eventID,
-			"fileName":  fileName,
-			"fileSize":  size,
-			"mimeType":  contentType,
+			"eventId":     eventID,
+			"fileName":    fileName,
+			"fileSize":    size,
+			"mimeType":    contentType,
 			"isMultipart": false,
 		}
 		_ = s.auditService.Record(ctx, event.PatientID.String(), protocol.ActionUpload, protocol.ResourceFile, file.ID, auditMetadata)
@@ -434,7 +442,7 @@ func (s *service) GetFile(ctx context.Context, fileID string, actor string) (*Ev
 		return nil, nil, fmt.Errorf("repo get file %s: %w", fileID, err)
 	}
 
-	reader, err := s.storage.Get(ctx, "fleming-blobs", file.BlobRef)
+	reader, err := s.storage.Get(ctx, s.bucketName, file.BlobRef)
 	if err != nil {
 		return nil, nil, fmt.Errorf("storage get %s: %w", file.BlobRef, err)
 	}
@@ -454,7 +462,7 @@ func (s *service) GetFile(ctx context.Context, fileID string, actor string) (*Ev
 
 func (s *service) StartMultipartUpload(ctx context.Context, eventID string, fileName string, contentType string) (string, string, error) {
 	objectName := fmt.Sprintf("%s/%s", eventID, fileName)
-	uploadID, err := s.storage.CreateMultipartUpload(ctx, "fleming-blobs", objectName, contentType)
+	uploadID, err := s.storage.CreateMultipartUpload(ctx, s.bucketName, objectName, contentType)
 	if err != nil {
 		return "", "", err
 	}
@@ -462,7 +470,7 @@ func (s *service) StartMultipartUpload(ctx context.Context, eventID string, file
 }
 
 func (s *service) UploadMultipartPart(ctx context.Context, objectName string, uploadID string, partNumber int, reader io.Reader, size int64) (string, error) {
-	return s.storage.UploadPart(ctx, "fleming-blobs", objectName, uploadID, partNumber, reader, size)
+	return s.storage.UploadPart(ctx, s.bucketName, objectName, uploadID, partNumber, reader, size)
 }
 
 func (s *service) CompleteMultipartUpload(
@@ -477,7 +485,7 @@ func (s *service) CompleteMultipartUpload(
 	wrappedDEK []byte,
 	metadata common.JSONMap,
 ) (*EventFile, error) {
-	blobRef, err := s.storage.CompleteMultipartUpload(ctx, "fleming-blobs", objectName, uploadID, parts)
+	blobRef, err := s.storage.CompleteMultipartUpload(ctx, s.bucketName, objectName, uploadID, parts)
 	if err != nil {
 		return nil, err
 	}
@@ -530,8 +538,8 @@ func (s *service) GetFileKey(ctx context.Context, fileID string, actor string, p
 
 func (s *service) SaveFileAccess(ctx context.Context, fileID string, grantee string, wrappedDEK []byte) error {
 	access := &EventFileAccess{
-		FileID:    fileID,
-		Grantee:   grantee,
+		FileID:     fileID,
+		Grantee:    grantee,
 		WrappedDEK: wrappedDEK,
 	}
 	if err := s.repo.UpsertFileAccess(ctx, access); err != nil {

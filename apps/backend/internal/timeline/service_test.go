@@ -2,6 +2,7 @@ package timeline
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/timeline"
+	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
 type MockAuditService struct{}
@@ -75,47 +77,65 @@ func (m *MockStorage) AbortMultipartUpload(ctx context.Context, bucketName, obje
 }
 
 type MockRepo struct {
-	events []TimelineEvent
-	edges  []EventEdge
+	nextID int
+	events []timeline.Event
+	edges  []timeline.Edge
 }
 
-func (m *MockRepo) GetByPatientID(ctx context.Context, patientID string) ([]TimelineEvent, error) {
-	var result []TimelineEvent
-	for _, e := range m.events {
-		if e.PatientID == patientID {
-			result = append(result, e)
-		}
-	}
-	return result, nil
-}
-
-func (m *MockRepo) GetByID(ctx context.Context, id string) (*TimelineEvent, error) {
-	for _, e := range m.events {
-		if e.ID == id {
-			return &e, nil
+func (m *MockRepo) GetEvent(ctx context.Context, id types.ID) (*timeline.Event, error) {
+	for i := range m.events {
+		if m.events[i].ID == id {
+			evt := m.events[i]
+			return &evt, nil
 		}
 	}
 	return nil, nil
 }
 
-func (m *MockRepo) Create(ctx context.Context, event *TimelineEvent) error {
+func (m *MockRepo) GetTimeline(ctx context.Context, patientID types.WalletAddress) ([]timeline.Event, error) {
+	out := make([]timeline.Event, 0, len(m.events))
+	for _, e := range m.events {
+		if e.PatientID == patientID {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+func (m *MockRepo) GetRelated(ctx context.Context, eventID types.ID, depth int) ([]timeline.Event, []timeline.Edge, error) {
+	// Tests don't require graph traversal; return no related edges so filtering doesn't remove events.
+	return []timeline.Event{}, []timeline.Edge{}, nil
+}
+
+func (m *MockRepo) CreateEvent(ctx context.Context, event *timeline.Event) error {
+	if event == nil {
+		return fmt.Errorf("event is nil")
+	}
+	if event.ID.IsEmpty() {
+		m.nextID++
+		event.ID = types.ID(fmt.Sprintf("evt-%d", m.nextID))
+	}
 	m.events = append(m.events, *event)
 	return nil
 }
 
-func (m *MockRepo) Update(ctx context.Context, event *TimelineEvent) error {
-	for i, e := range m.events {
-		if e.ID == event.ID {
+func (m *MockRepo) UpdateEvent(ctx context.Context, event *timeline.Event) error {
+	if event == nil {
+		return fmt.Errorf("event is nil")
+	}
+	for i := range m.events {
+		if m.events[i].ID == event.ID {
 			m.events[i] = *event
 			return nil
 		}
 	}
+	m.events = append(m.events, *event)
 	return nil
 }
 
-func (m *MockRepo) Delete(ctx context.Context, id string) error {
-	for i, e := range m.events {
-		if e.ID == id {
+func (m *MockRepo) DeleteEvent(ctx context.Context, id types.ID) error {
+	for i := range m.events {
+		if m.events[i].ID == id {
 			m.events = append(m.events[:i], m.events[i+1:]...)
 			return nil
 		}
@@ -123,14 +143,21 @@ func (m *MockRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *MockRepo) CreateEdge(ctx context.Context, edge *EventEdge) error {
+func (m *MockRepo) CreateEdge(ctx context.Context, edge *timeline.Edge) error {
+	if edge == nil {
+		return fmt.Errorf("edge is nil")
+	}
+	if edge.ID.IsEmpty() {
+		m.nextID++
+		edge.ID = types.ID(fmt.Sprintf("edge-%d", m.nextID))
+	}
 	m.edges = append(m.edges, *edge)
 	return nil
 }
 
-func (m *MockRepo) DeleteEdge(ctx context.Context, id string) error {
-	for i, e := range m.edges {
-		if e.ID == id {
+func (m *MockRepo) DeleteEdge(ctx context.Context, id types.ID) error {
+	for i := range m.edges {
+		if m.edges[i].ID == id {
 			m.edges = append(m.edges[:i], m.edges[i+1:]...)
 			return nil
 		}
@@ -138,115 +165,75 @@ func (m *MockRepo) DeleteEdge(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *MockRepo) GetRelatedEvents(ctx context.Context, eventID string, maxDepth int) ([]TimelineEvent, error) {
-	return m.events, nil
-}
-
-func (m *MockRepo) GetGraphData(ctx context.Context, patientID string) ([]TimelineEvent, []EventEdge, error) {
-	var events []TimelineEvent
-	for _, e := range m.events {
-		if e.PatientID == patientID {
-			events = append(events, e)
-		}
-	}
-	return events, m.edges, nil
-}
-
-func (m *MockRepo) Transaction(ctx context.Context, fn func(repo Repository) error) error {
-	return fn(m)
-}
-
-func (m *MockRepo) CreateFile(ctx context.Context, file *EventFile) error {
-	return nil
-}
-
+func (m *MockRepo) CreateFile(ctx context.Context, file *EventFile) error { return nil }
 func (m *MockRepo) GetFileByID(ctx context.Context, id string) (*EventFile, error) {
 	return nil, nil
 }
-
 func (m *MockRepo) GetFilesByEventID(ctx context.Context, eventID string) ([]EventFile, error) {
 	return nil, nil
 }
-func (m *MockRepo) UpsertFileAccess(ctx context.Context, access *EventFileAccess) error {
-	return nil
-}
+func (m *MockRepo) UpsertFileAccess(ctx context.Context, confirmations *EventFileAccess) error { return nil }
 func (m *MockRepo) GetFileAccess(ctx context.Context, fileID string, grantee string) (*EventFileAccess, error) {
 	return nil, nil
 }
+func (m *MockRepo) GetGraphData(ctx context.Context, patientID string) ([]TimelineEvent, []EventEdge, error) {
+	return []TimelineEvent{}, []EventEdge{}, nil
+}
+func (m *MockRepo) Transaction(ctx context.Context, fn func(repo Repository) error) error { return fn(m) }
 
-func TestService_AddEvent(t *testing.T) {
+func TestService_CreateEvent(t *testing.T) {
 	repo := &MockRepo{}
 	auditSvc := &MockAuditService{}
 	storageSvc := &MockStorage{}
-	svc := NewService(repo, auditSvc, storageSvc)
+	svc := NewService(repo, auditSvc, storageSvc, "test-bucket")
 
-	tests := []struct {
-		name    string
-		event   *TimelineEvent
-		wantErr bool
-	}{
-		{
-			name: "valid event",
-			event: &TimelineEvent{
-				PatientID: "0x123",
-				Type:      timeline.EventLabResult,
-				Title:     "Blood Test",
-				Timestamp: time.Now(),
-			},
-			wantErr: false,
-		},
-		{
-			name: "missing patient ID",
-			event: &TimelineEvent{
-				Type:      timeline.EventLabResult,
-				Title:     "Blood Test",
-				Timestamp: time.Now(),
-			},
-			wantErr: true,
-		},
+	patientID, err := types.NewWalletAddress("0x0000000000000000000000000000000000000123")
+	if err != nil {
+		t.Fatalf("unexpected patient id error: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := svc.AddEvent(context.Background(), tt.event)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("AddEvent() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+	event, err := timeline.NewEventBuilder().
+		WithPatientID(patientID).
+		WithType(timeline.EventLabResult).
+		WithTitle("Blood Test").
+		WithTimestamp(time.Now()).
+		Build()
+	if err != nil {
+		t.Fatalf("unexpected event build error: %v", err)
+	}
+
+	if err := svc.CreateEvent(context.Background(), event); err != nil {
+		t.Fatalf("CreateEvent() error = %v", err)
+	}
+
+	got, err := svc.GetTimelineForPatient(context.Background(), patientID)
+	if err != nil {
+		t.Fatalf("GetTimelineForPatient() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("GetTimelineForPatient() count = %d, want %d", len(got), 1)
 	}
 }
 
-func TestService_GetTimeline(t *testing.T) {
-	repo := &MockRepo{
-		events: []TimelineEvent{
-			{PatientID: "0x123", Title: "Event 1"},
-			{PatientID: "0x456", Title: "Event 2"},
-		},
-	}
+func TestService_GetTimelineForPatient_FiltersByPatient(t *testing.T) {
+	repo := &MockRepo{}
 	auditSvc := &MockAuditService{}
 	storageSvc := &MockStorage{}
-	svc := NewService(repo, auditSvc, storageSvc)
+	svc := NewService(repo, auditSvc, storageSvc, "test-bucket")
 
-	tests := []struct {
-		name      string
-		patientID string
-		wantCount int
-		wantErr   bool
-	}{
-		{"existing patient", "0x123", 1, false},
-		{"non-existing patient", "0x999", 0, false},
+	p1, _ := types.NewWalletAddress("0x0000000000000000000000000000000000000123")
+	p2, _ := types.NewWalletAddress("0x0000000000000000000000000000000000000456")
+
+	e1, _ := timeline.NewEventBuilder().WithPatientID(p1).WithType(timeline.EventConsultation).WithTitle("Event 1").WithTimestamp(time.Now()).Build()
+	e2, _ := timeline.NewEventBuilder().WithPatientID(p2).WithType(timeline.EventConsultation).WithTitle("Event 2").WithTimestamp(time.Now()).Build()
+	_ = svc.CreateEvent(context.Background(), e1)
+	_ = svc.CreateEvent(context.Background(), e2)
+
+	got, err := svc.GetTimelineForPatient(context.Background(), p1)
+	if err != nil {
+		t.Fatalf("GetTimelineForPatient() error = %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := svc.GetTimeline(context.Background(), tt.patientID)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetTimeline() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if len(got) != tt.wantCount {
-				t.Errorf("GetTimeline() count = %v, want %v", len(got), tt.wantCount)
-			}
-		})
+	if len(got) != 1 {
+		t.Fatalf("GetTimelineForPatient() count = %d, want %d", len(got), 1)
 	}
 }

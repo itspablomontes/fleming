@@ -1,8 +1,9 @@
-# Build Stage
-# Using Go 1.25 as requested (available in 2026 timeline)
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25-alpine AS base
 
 WORKDIR /workspace
+
+# Needed for TLS (Neon/R2), healthchecks, and fetching some Go modules.
+RUN apk add --no-cache ca-certificates git curl
 
 # Copy go.work and module files first for better caching
 COPY go.work go.work.sum ./
@@ -13,28 +14,26 @@ COPY pkg/go.mod pkg/go.sum ./pkg/
 RUN cd apps/backend && go mod download
 RUN cd pkg && go mod download
 
-# Install Air for hot reload in development
-RUN go install github.com/air-verse/air@latest
-
 # Copy the source
 COPY apps/backend ./apps/backend
 COPY pkg ./pkg
 
+# Development stage (hot reload)
+FROM base AS dev
+RUN go install github.com/air-verse/air@latest
 WORKDIR /workspace/apps/backend
 
-# Build the Go app
-RUN go build -o main ./cmd/fleming/main.go
+# Build stage
+FROM base AS builder
+WORKDIR /workspace/apps/backend
+ENV CGO_ENABLED=0
+RUN go build -trimpath -ldflags="-s -w" -o /out/fleming ./cmd/fleming/main.go
 
-# Run Stage
+# Runtime stage
 FROM alpine:latest
-
-WORKDIR /root/
-
-# Copy the Pre-built binary file from the previous stage
-COPY --from=builder /workspace/apps/backend/main .
-
-# Expose port 8080
+RUN apk add --no-cache ca-certificates curl && addgroup -S app && adduser -S -G app app
+WORKDIR /app
+COPY --from=builder /out/fleming ./fleming
+USER app
 EXPOSE 8080
-
-# Command to run the executable
-CMD ["./main"]
+CMD ["./fleming"]
