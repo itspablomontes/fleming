@@ -18,10 +18,13 @@ type Service interface {
 	Record(ctx context.Context, actor string, action audit.Action, resourceType audit.ResourceType, resourceID string, metadata common.JSONMap) error
 	GetLatestEntries(ctx context.Context, actor string, limit int) ([]AuditEntry, error)
 	VerifyIntegrity(ctx context.Context) (bool, error)
-	BuildMerkleTree(ctx context.Context, startTime time.Time, endTime time.Time) (*AuditBatch, *audit.MerkleTree, error)
-	GetMerkleRoot(ctx context.Context, batchID string) (string, error)
+	BuildMerkleTree(ctx context.Context, actor string, startTime time.Time, endTime time.Time) (*AuditBatch, *audit.MerkleTree, error)
+	GetBatch(ctx context.Context, actor string, batchID string) (*AuditBatch, error)
+	GetBatchByRoot(ctx context.Context, actor string, rootHash string) (*AuditBatch, error)
+	ListBatches(ctx context.Context, actor string, limit int, offset int) ([]AuditBatch, error)
+	AnchorBatch(ctx context.Context, actor string, batchID string, chainClient ChainAnchorer) (*AuditBatch, error)
 	VerifyMerkleProof(root string, entryHash string, proof *audit.Proof) bool
-	GetEntriesForMerkle(ctx context.Context, startTime time.Time, endTime time.Time) ([]AuditEntry, error)
+	GetEntriesForMerkle(ctx context.Context, actor string, startTime time.Time, endTime time.Time) ([]AuditEntry, error)
 	GetEntryByID(ctx context.Context, id string) (*AuditEntry, error)
 	GetEntriesByResource(ctx context.Context, resourceID string) ([]AuditEntry, error)
 	QueryEntries(ctx context.Context, filter audit.QueryFilter) ([]AuditEntry, error)
@@ -132,8 +135,14 @@ func (s *service) VerifyIntegrity(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (s *service) GetEntriesForMerkle(ctx context.Context, startTime time.Time, endTime time.Time) ([]AuditEntry, error) {
+func (s *service) GetEntriesForMerkle(ctx context.Context, actor string, startTime time.Time, endTime time.Time) ([]AuditEntry, error) {
+	address, err := types.NewWalletAddress(actor)
+	if err != nil {
+		return nil, fmt.Errorf("audit: invalid actor address: %w", err)
+	}
+
 	filter := audit.NewQueryFilter()
+	filter.Actor = address
 	if !startTime.IsZero() {
 		ts := types.NewTimestamp(startTime)
 		filter.StartTime = &ts
@@ -159,10 +168,17 @@ func (s *service) QueryEntries(ctx context.Context, filter audit.QueryFilter) ([
 	return s.repo.Query(ctx, filter)
 }
 
-func (s *service) BuildMerkleTree(ctx context.Context, startTime time.Time, endTime time.Time) (*AuditBatch, *audit.MerkleTree, error) {
-	entries, err := s.GetEntriesForMerkle(ctx, startTime, endTime)
+func (s *service) BuildMerkleTree(ctx context.Context, actor string, startTime time.Time, endTime time.Time) (*AuditBatch, *audit.MerkleTree, error) {
+	if actor == "" {
+		return nil, nil, fmt.Errorf("build merkle tree: actor is required")
+	}
+
+	entries, err := s.GetEntriesForMerkle(ctx, actor, startTime, endTime)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build merkle tree: %w", err)
+	}
+	if len(entries) == 0 {
+		return nil, nil, fmt.Errorf("build merkle tree: no entries in range")
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
@@ -184,12 +200,22 @@ func (s *service) BuildMerkleTree(ctx context.Context, startTime time.Time, endT
 		return nil, nil, fmt.Errorf("build merkle tree: %w", err)
 	}
 
+	existing, err := s.repo.GetBatchByActorAndRoot(ctx, actor, tree.Root)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get audit batch by root: %w", err)
+	}
+	if existing != nil {
+		return existing, tree, nil
+	}
+
 	batch := &AuditBatch{
-		RootHash:   tree.Root,
-		StartTime:  startTime.UTC(),
-		EndTime:    endTime.UTC(),
-		EntryCount: len(entries),
-		CreatedAt:  time.Now().UTC(),
+		Actor:        actor,
+		RootHash:     tree.Root,
+		StartTime:    startTime.UTC(),
+		EndTime:      endTime.UTC(),
+		EntryCount:   len(entries),
+		CreatedAt:    time.Now().UTC(),
+		AnchorStatus: "pending",
 	}
 	if err := s.repo.CreateBatch(ctx, batch); err != nil {
 		return nil, nil, fmt.Errorf("create audit batch: %w", err)
@@ -198,15 +224,49 @@ func (s *service) BuildMerkleTree(ctx context.Context, startTime time.Time, endT
 	return batch, tree, nil
 }
 
-func (s *service) GetMerkleRoot(ctx context.Context, batchID string) (string, error) {
-	batch, err := s.repo.GetBatchByID(ctx, batchID)
+func (s *service) GetBatch(ctx context.Context, actor string, batchID string) (*AuditBatch, error) {
+	if actor == "" {
+		return nil, fmt.Errorf("get audit batch: actor is required")
+	}
+	if batchID == "" {
+		return nil, fmt.Errorf("get audit batch: batch id is required")
+	}
+
+	batch, err := s.repo.GetBatchByIDForActor(ctx, actor, batchID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if batch == nil {
-		return "", nil
+	return batch, nil
+}
+
+func (s *service) GetBatchByRoot(ctx context.Context, actor string, rootHash string) (*AuditBatch, error) {
+	if actor == "" {
+		return nil, fmt.Errorf("get audit batch by root: actor is required")
 	}
-	return batch.RootHash, nil
+	if rootHash == "" {
+		return nil, fmt.Errorf("get audit batch by root: root hash is required")
+	}
+	batch, err := s.repo.GetBatchByActorAndRoot(ctx, actor, rootHash)
+	if err != nil {
+		return nil, err
+	}
+	return batch, nil
+}
+
+func (s *service) ListBatches(ctx context.Context, actor string, limit int, offset int) ([]AuditBatch, error) {
+	if actor == "" {
+		return nil, fmt.Errorf("list audit batches: actor is required")
+	}
+	if limit <= 0 {
+		limit = 25
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	return s.repo.ListBatchesByActor(ctx, actor, limit, offset)
 }
 
 func (s *service) VerifyMerkleProof(root string, entryHash string, proof *audit.Proof) bool {

@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"fmt"
+	"time"
 
 	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
@@ -19,8 +20,11 @@ type Repository interface {
 	GetByID(ctx context.Context, id types.ID) (*AuditEntry, error)
 	Query(ctx context.Context, filter protocol.QueryFilter) ([]AuditEntry, error)
 	CreateBatch(ctx context.Context, batch *AuditBatch) error
-	GetBatchByID(ctx context.Context, id string) (*AuditBatch, error)
-	GetBatchByRoot(ctx context.Context, rootHash string) (*AuditBatch, error)
+	UpdateBatch(ctx context.Context, batch *AuditBatch) error
+	GetBatchByIDForActor(ctx context.Context, actor string, id string) (*AuditBatch, error)
+	GetBatchByActorAndRoot(ctx context.Context, actor string, rootHash string) (*AuditBatch, error)
+	ListBatchesByActor(ctx context.Context, actor string, limit int, offset int) ([]AuditBatch, error)
+	GetDistinctActorsWithEntries(ctx context.Context, startTime time.Time, endTime time.Time, limit int) ([]string, error)
 }
 
 type gormRepository struct {
@@ -141,9 +145,19 @@ func (r *gormRepository) CreateBatch(ctx context.Context, batch *AuditBatch) err
 	return nil
 }
 
-func (r *gormRepository) GetBatchByID(ctx context.Context, id string) (*AuditBatch, error) {
+func (r *gormRepository) UpdateBatch(ctx context.Context, batch *AuditBatch) error {
+	if batch == nil {
+		return fmt.Errorf("update audit batch: nil batch")
+	}
+	if err := r.db.WithContext(ctx).Save(batch).Error; err != nil {
+		return fmt.Errorf("update audit batch: %w", err)
+	}
+	return nil
+}
+
+func (r *gormRepository) GetBatchByIDForActor(ctx context.Context, actor string, id string) (*AuditBatch, error) {
 	var batch AuditBatch
-	if err := r.db.WithContext(ctx).First(&batch, "id = ?", id).Error; err != nil {
+	if err := r.db.WithContext(ctx).First(&batch, "id = ? AND actor = ?", id, actor).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -152,13 +166,52 @@ func (r *gormRepository) GetBatchByID(ctx context.Context, id string) (*AuditBat
 	return &batch, nil
 }
 
-func (r *gormRepository) GetBatchByRoot(ctx context.Context, rootHash string) (*AuditBatch, error) {
+func (r *gormRepository) GetBatchByActorAndRoot(ctx context.Context, actor string, rootHash string) (*AuditBatch, error) {
 	var batch AuditBatch
-	if err := r.db.WithContext(ctx).First(&batch, "root_hash = ?", rootHash).Error; err != nil {
+	if err := r.db.WithContext(ctx).First(&batch, "actor = ? AND root_hash = ?", actor, rootHash).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get audit batch by root: %w", err)
 	}
 	return &batch, nil
+}
+
+func (r *gormRepository) ListBatchesByActor(ctx context.Context, actor string, limit int, offset int) ([]AuditBatch, error) {
+	var batches []AuditBatch
+
+	query := r.db.WithContext(ctx).Where("actor = ?", actor).Order("created_at DESC, id DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+
+	if err := query.Find(&batches).Error; err != nil {
+		return nil, fmt.Errorf("list audit batches: %w", err)
+	}
+
+	return batches, nil
+}
+
+func (r *gormRepository) GetDistinctActorsWithEntries(ctx context.Context, startTime time.Time, endTime time.Time, limit int) ([]string, error) {
+	var actors []string
+
+	query := r.db.WithContext(ctx).Model(&AuditEntry{}).Distinct("actor").Order("actor ASC")
+	if !startTime.IsZero() {
+		query = query.Where("timestamp >= ?", startTime)
+	}
+	if !endTime.IsZero() {
+		query = query.Where("timestamp <= ?", endTime)
+	}
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	if err := query.Pluck("actor", &actors).Error; err != nil {
+		return nil, fmt.Errorf("list distinct actors: %w", err)
+	}
+
+	return actors, nil
 }

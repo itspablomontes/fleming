@@ -63,6 +63,9 @@ func (m *mockRepo) GetByID(ctx context.Context, id types.ID) (*AuditEntry, error
 func (m *mockRepo) Query(ctx context.Context, filter protocol.QueryFilter) ([]AuditEntry, error) {
 	var result []AuditEntry
 	for _, entry := range m.entries {
+		if !filter.Actor.IsEmpty() && entry.Actor != filter.Actor.String() {
+			continue
+		}
 		if filter.StartTime != nil && entry.Timestamp.Before(filter.StartTime.Time) {
 			continue
 		}
@@ -82,9 +85,23 @@ func (m *mockRepo) CreateBatch(ctx context.Context, batch *AuditBatch) error {
 	return nil
 }
 
-func (m *mockRepo) GetBatchByID(ctx context.Context, id string) (*AuditBatch, error) {
+func (m *mockRepo) UpdateBatch(ctx context.Context, batch *AuditBatch) error {
+	if batch == nil {
+		return nil
+	}
+	for i := range m.batches {
+		if m.batches[i].ID == batch.ID {
+			m.batches[i] = *batch
+			return nil
+		}
+	}
+	m.batches = append(m.batches, *batch)
+	return nil
+}
+
+func (m *mockRepo) GetBatchByIDForActor(ctx context.Context, actor string, id string) (*AuditBatch, error) {
 	for _, batch := range m.batches {
-		if batch.ID == id {
+		if batch.ID == id && batch.Actor == actor {
 			found := batch
 			return &found, nil
 		}
@@ -92,26 +109,61 @@ func (m *mockRepo) GetBatchByID(ctx context.Context, id string) (*AuditBatch, er
 	return nil, nil
 }
 
-func (m *mockRepo) GetBatchByRoot(ctx context.Context, rootHash string) (*AuditBatch, error) {
+func (m *mockRepo) GetBatchByActorAndRoot(ctx context.Context, actor string, rootHash string) (*AuditBatch, error) {
 	for _, batch := range m.batches {
-		if batch.RootHash == rootHash {
+		if batch.Actor == actor && batch.RootHash == rootHash {
 			found := batch
 			return &found, nil
 		}
 	}
 	return nil, nil
+}
+
+func (m *mockRepo) ListBatchesByActor(ctx context.Context, actor string, limit int, offset int) ([]AuditBatch, error) {
+	var out []AuditBatch
+	for _, b := range m.batches {
+		if b.Actor == actor {
+			out = append(out, b)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) GetDistinctActorsWithEntries(ctx context.Context, startTime time.Time, endTime time.Time, limit int) ([]string, error) {
+	seen := map[string]bool{}
+	var actors []string
+	for _, e := range m.entries {
+		if !startTime.IsZero() && e.Timestamp.Before(startTime) {
+			continue
+		}
+		if !endTime.IsZero() && e.Timestamp.After(endTime) {
+			continue
+		}
+		if seen[e.Actor] {
+			continue
+		}
+		seen[e.Actor] = true
+		actors = append(actors, e.Actor)
+		if limit > 0 && len(actors) >= limit {
+			break
+		}
+	}
+	return actors, nil
 }
 
 func TestService_BuildMerkleTreeAndVerifyProof(t *testing.T) {
+	actor := "0x1234567890abcdef1234567890abcdef12345678"
 	repo := &mockRepo{
 		entries: []AuditEntry{
 			{
 				ID:        "entry-1",
+				Actor:     actor,
 				Hash:      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				Timestamp: time.Date(2026, 1, 25, 10, 0, 0, 0, time.UTC),
 			},
 			{
 				ID:        "entry-2",
+				Actor:     actor,
 				Hash:      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 				Timestamp: time.Date(2026, 1, 25, 11, 0, 0, 0, time.UTC),
 			},
@@ -119,7 +171,7 @@ func TestService_BuildMerkleTreeAndVerifyProof(t *testing.T) {
 	}
 	service := NewService(repo)
 
-	batch, tree, err := service.BuildMerkleTree(context.Background(), time.Time{}, time.Time{})
+	batch, tree, err := service.BuildMerkleTree(context.Background(), actor, time.Time{}, time.Time{})
 	if err != nil {
 		t.Fatalf("BuildMerkleTree() error = %v", err)
 	}
@@ -141,11 +193,25 @@ func TestService_BuildMerkleTreeAndVerifyProof(t *testing.T) {
 		t.Fatal("VerifyMerkleProof() expected true")
 	}
 
-	root, err := service.GetMerkleRoot(context.Background(), batch.ID)
+	fetched, err := service.GetBatch(context.Background(), actor, batch.ID)
 	if err != nil {
-		t.Fatalf("GetMerkleRoot() error = %v", err)
+		t.Fatalf("GetBatch() error = %v", err)
 	}
-	if root != tree.Root {
-		t.Fatalf("GetMerkleRoot() mismatch: got %s want %s", root, tree.Root)
+	if fetched == nil {
+		t.Fatal("expected batch to be returned")
+	}
+	if fetched.RootHash != tree.Root {
+		t.Fatalf("GetBatch() root mismatch: got %s want %s", fetched.RootHash, tree.Root)
+	}
+
+	byRoot, err := service.GetBatchByRoot(context.Background(), actor, tree.Root)
+	if err != nil {
+		t.Fatalf("GetBatchByRoot() error = %v", err)
+	}
+	if byRoot == nil {
+		t.Fatal("expected GetBatchByRoot() to return a batch")
+	}
+	if byRoot.ID != batch.ID {
+		t.Fatalf("expected GetBatchByRoot() id %q, got %q", batch.ID, byRoot.ID)
 	}
 }

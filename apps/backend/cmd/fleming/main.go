@@ -16,9 +16,9 @@ import (
 	"gorm.io/gorm"
 
 	api "github.com/itspablomontes/fleming/apps/backend"
-	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
 	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
+	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
 	"github.com/itspablomontes/fleming/apps/backend/internal/timeline"
 )
@@ -79,6 +79,20 @@ func main() {
 		&consent.ConsentGrant{},
 	); err != nil {
 		slog.Error("failed to auto-migrate schema", "error", err)
+		os.Exit(1)
+	}
+
+	// Audit batch indexes: we want actor-scoped Merkle batches (privacy) and therefore
+	// must not enforce global uniqueness on `root_hash`.
+	//
+	// NOTE: AutoMigrate will not reliably drop old indexes. We do a safe best-effort
+	// cleanup here to keep dev/prod schemas aligned.
+	if err := db.Exec(`DROP INDEX IF EXISTS idx_audit_batches_root_hash`).Error; err != nil {
+		slog.Error("failed to drop legacy audit batch index", "error", err)
+		os.Exit(1)
+	}
+	if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_batches_actor_root_hash ON audit_batches (actor, root_hash)`).Error; err != nil {
+		slog.Error("failed to ensure audit batch composite index", "error", err)
 		os.Exit(1)
 	}
 

@@ -1,23 +1,39 @@
 package audit
 
 import (
+	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
 // Handler handles HTTP requests for audit logs.
 type Handler struct {
-	service Service
+	service              Service
+	chainClient          ChainAnchorer
+	chainEndpointEnabled bool
 }
 
 // NewHandler creates a new audit handler.
-func NewHandler(service Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service Service, chainClient ChainAnchorer) *Handler {
+	env := config.NormalizeEnv(os.Getenv("ENV"))
+
+	enabled := env == "dev"
+	if !enabled {
+		enabled = os.Getenv("ENABLE_CHAIN_ANCHOR_ENDPOINT") == "true"
+	}
+
+	return &Handler{
+		service:              service,
+		chainClient:          chainClient,
+		chainEndpointEnabled: enabled,
+	}
 }
 
 // RegisterRoutes registers audit endpoints.
@@ -29,9 +45,14 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		audit.GET("/resource/:resourceId", h.HandleGetByResource)
 		audit.GET("/query", h.HandleQuery)
 		audit.GET("/verify", h.HandleVerify)
+		audit.GET("/verify/:root", h.HandleVerifyRoot)
 		audit.POST("/merkle/build", h.HandleBuildMerkle)
-		audit.GET("/merkle/:batchId", h.HandleGetMerkleRoot)
+		audit.GET("/merkle/batches", h.HandleListMerkleBatches)
+		audit.GET("/merkle/:batchId", h.HandleGetMerkleBatch)
 		audit.POST("/merkle/verify", h.HandleVerifyMerkle)
+		if h.chainEndpointEnabled {
+			audit.POST("/merkle/:batchId/anchor", h.HandleAnchorMerkleBatch)
+		}
 	}
 }
 
@@ -183,6 +204,13 @@ type merkleBuildRequest struct {
 }
 
 func (h *Handler) HandleBuildMerkle(c *gin.Context) {
+	address, exists := c.Get("user_address")
+	actor, ok := address.(string)
+	if !exists || !ok || actor == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	var req merkleBuildRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
@@ -208,7 +236,7 @@ func (h *Handler) HandleBuildMerkle(c *gin.Context) {
 		endTime = ts.Time
 	}
 
-	batch, tree, err := h.service.BuildMerkleTree(c.Request.Context(), startTime, endTime)
+	batch, tree, err := h.service.BuildMerkleTree(c.Request.Context(), actor, startTime, endTime)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build merkle tree"})
 		return
@@ -220,30 +248,77 @@ func (h *Handler) HandleBuildMerkle(c *gin.Context) {
 	})
 }
 
-func (h *Handler) HandleGetMerkleRoot(c *gin.Context) {
+func (h *Handler) HandleListMerkleBatches(c *gin.Context) {
+	address, exists := c.Get("user_address")
+	actor, ok := address.(string)
+	if !exists || !ok || actor == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	limitStr := c.Query("limit")
+	offsetStr := c.Query("offset")
+
+	limit := 25
+	if limitStr != "" {
+		v, err := strconv.Atoi(limitStr)
+		if err != nil || v < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit"})
+			return
+		}
+		limit = v
+	}
+
+	offset := 0
+	if offsetStr != "" {
+		v, err := strconv.Atoi(offsetStr)
+		if err != nil || v < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid offset"})
+			return
+		}
+		offset = v
+	}
+
+	batches, err := h.service.ListBatches(c.Request.Context(), actor, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list merkle batches"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"batches": batches})
+}
+
+func (h *Handler) HandleGetMerkleBatch(c *gin.Context) {
+	address, exists := c.Get("user_address")
+	actor, ok := address.(string)
+	if !exists || !ok || actor == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	batchID := c.Param("batchId")
 	if batchID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "batch ID is required"})
 		return
 	}
 
-	root, err := h.service.GetMerkleRoot(c.Request.Context(), batchID)
+	batch, err := h.service.GetBatch(c.Request.Context(), actor, batchID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch merkle root"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch merkle batch"})
 		return
 	}
-	if root == "" {
+	if batch == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "batch not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"root": root})
+	c.JSON(http.StatusOK, gin.H{"batch": batch})
 }
 
 type merkleVerifyRequest struct {
-	Root      string       `json:"root" binding:"required"`
-	EntryHash string       `json:"entryHash" binding:"required"`
-	Proof     audit.Proof  `json:"proof" binding:"required"`
+	Root      string      `json:"root" binding:"required"`
+	EntryHash string      `json:"entryHash" binding:"required"`
+	Proof     audit.Proof `json:"proof" binding:"required"`
 }
 
 func (h *Handler) HandleVerifyMerkle(c *gin.Context) {
@@ -255,4 +330,44 @@ func (h *Handler) HandleVerifyMerkle(c *gin.Context) {
 
 	valid := h.service.VerifyMerkleProof(req.Root, req.EntryHash, &req.Proof)
 	c.JSON(http.StatusOK, gin.H{"valid": valid})
+}
+
+func (h *Handler) HandleAnchorMerkleBatch(c *gin.Context) {
+	if h.chainClient == nil {
+		c.JSON(http.StatusNotImplemented, gin.H{
+			"error": "chain anchoring is not configured (set ANCHOR_RPC_URL, ANCHOR_CONTRACT_ADDRESS, ANCHOR_PRIVATE_KEY)",
+		})
+		return
+	}
+
+	address, exists := c.Get("user_address")
+	actor, ok := address.(string)
+	if !exists || !ok || actor == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	batchID := c.Param("batchId")
+	if batchID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "batch ID is required"})
+		return
+	}
+
+	batch, err := h.service.AnchorBatch(c.Request.Context(), actor, batchID, h.chainClient)
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "anchor batch failed", "batchId", batchID, "error", err)
+		// If we have a batch, return it for visibility (e.g., failed status + error).
+		if batch != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to anchor batch", "batch": batch})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to anchor batch"})
+		return
+	}
+	if batch == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "batch not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"batch": batch})
 }
