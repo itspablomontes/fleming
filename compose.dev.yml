@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-      target: builder
+      target: dev
     command: sh -c "cd /workspace/apps/backend && air -c .air.toml"
     volumes:
       - ./apps/backend:/workspace/apps/backend

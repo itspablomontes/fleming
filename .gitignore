@@ -70,6 +70,9 @@ web_modules/
 # Optional npm cache directory
 .npm
 
+# pnpm store (local installs)
+.pnpm-store/
+
 # Optional eslint cache
 .eslintcache
 
@@ -93,6 +96,8 @@ web_modules/
 
 # dotenv environment variable files
 .env
+.env.production
+.env.staging
 .env.development.local
 .env.test.local
 .env.production.local
@@ -172,3 +177,4 @@ Thumbs.db
 tmp/
 temp/
 .gocache/
+.pnpm-store/
