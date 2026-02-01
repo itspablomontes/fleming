@@ -13,7 +13,9 @@ import (
 // Repository defines the interface for audit log persistence.
 type Repository interface {
 	Create(ctx context.Context, entry *AuditEntry) error
-	GetLatest(ctx context.Context) (*AuditEntry, error)
+	// GetLatest returns the most recent entry for the given actor (record owner).
+	// If actor is empty, it returns the most recent entry globally.
+	GetLatest(ctx context.Context, actor string) (*AuditEntry, error)
 	List(ctx context.Context, actor string, limit int) ([]AuditEntry, error)
 	GetByResource(ctx context.Context, resourceID types.ID) ([]AuditEntry, error)
 	GetByActor(ctx context.Context, actor types.WalletAddress) ([]AuditEntry, error)
@@ -43,9 +45,13 @@ func (r *gormRepository) Create(ctx context.Context, entry *AuditEntry) error {
 	return nil
 }
 
-func (r *gormRepository) GetLatest(ctx context.Context) (*AuditEntry, error) {
+func (r *gormRepository) GetLatest(ctx context.Context, actor string) (*AuditEntry, error) {
 	var entry AuditEntry
-	err := r.db.WithContext(ctx).Order("timestamp DESC, id DESC").Limit(1).First(&entry).Error
+	query := r.db.WithContext(ctx).Order("timestamp DESC, id DESC")
+	if actor != "" {
+		query = query.Where("actor = ?", actor)
+	}
+	err := query.Limit(1).First(&entry).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil

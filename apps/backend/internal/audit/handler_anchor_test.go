@@ -19,7 +19,7 @@ type memRepo struct {
 }
 
 func (m *memRepo) Create(ctx context.Context, entry *AuditEntry) error { return nil }
-func (m *memRepo) GetLatest(ctx context.Context) (*AuditEntry, error)  { return nil, nil }
+func (m *memRepo) GetLatest(ctx context.Context, actor string) (*AuditEntry, error) { return nil, nil }
 func (m *memRepo) List(ctx context.Context, actor string, limit int) ([]AuditEntry, error) {
 	return nil, nil
 }

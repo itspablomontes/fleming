@@ -76,7 +76,14 @@ func (h *Handler) HandleGetLogs(c *gin.Context) {
 
 // HandleVerify performs a check of the entire chain integrity.
 func (h *Handler) HandleVerify(c *gin.Context) {
-	valid, err := h.service.VerifyIntegrity(c.Request.Context())
+	address, exists := c.Get("user_address")
+	actor, ok := address.(string)
+	if !exists || !ok || actor == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	valid, err := h.service.VerifyIntegrity(c.Request.Context(), actor)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "integrity check failed"})
 		return
