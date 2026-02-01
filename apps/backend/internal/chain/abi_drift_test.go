@@ -19,7 +19,8 @@ func TestFlemingAnchor_ABIJSONMatchesGeneratedBinding(t *testing.T) {
 		t.Fatal("runtime.Caller failed")
 	}
 
-	abiPath := filepath.Join(filepath.Dir(thisFile), "abi", "FlemingAnchor.abi.json")
+	// The protocol ABI JSON is the single committed source of truth.
+	abiPath := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "pkg", "protocol", "chain", "abi", "FlemingAnchor.abi.json")
 	raw, err := os.ReadFile(abiPath)
 	if err != nil {
 		t.Fatalf("read ABI json %q: %v", abiPath, err)
