@@ -84,7 +84,7 @@ func (h *Handler) HandleVerify(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"valid":   valid,
-		"message": "Audit chain integrity verified",
+		"message": map[bool]string{true: "Audit chain integrity verified", false: "Audit chain integrity failure detected"}[valid],
 	})
 }
 

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/itspablomontes/fleming/apps/backend/internal/chain"
 	protocolaudit "github.com/itspablomontes/fleming/pkg/protocol/audit"
-	protocolchain "github.com/itspablomontes/fleming/pkg/protocol/chain"
 	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
@@ -84,13 +84,13 @@ func (m *memRepo) GetDistinctActorsWithEntries(ctx context.Context, startTime ti
 type mockChainClient struct {
 	anchorCalls int
 	verifyCalls int
-	anchorRes   *protocolchain.AnchorResult
+	anchorRes   *chain.AnchorResult
 	anchorErr   error
 	verifyTs    uint64
 	verifyErr   error
 }
 
-func (m *mockChainClient) AnchorRoot(ctx context.Context, hexRoot string) (*protocolchain.AnchorResult, error) {
+func (m *mockChainClient) AnchorRoot(ctx context.Context, hexRoot string) (*chain.AnchorResult, error) {
 	m.anchorCalls++
 	return m.anchorRes, m.anchorErr
 }
@@ -98,7 +98,7 @@ func (m *mockChainClient) VerifyRoot(ctx context.Context, hexRoot string) (uint6
 	m.verifyCalls++
 	return m.verifyTs, m.verifyErr
 }
-func (m *mockChainClient) FindRootAnchoredEvent(ctx context.Context, hexRoot string) (*protocolchain.RootAnchoredEvent, bool, error) {
+func (m *mockChainClient) FindRootAnchoredEvent(ctx context.Context, hexRoot string) (*chain.RootAnchoredEvent, bool, error) {
 	return nil, false, nil
 }
 
@@ -141,12 +141,12 @@ func TestHandleAnchorMerkleBatch_Success(t *testing.T) {
 		},
 	}
 	svc := NewService(repo)
-	chain := &mockChainClient{
-		anchorRes: &protocolchain.AnchorResult{TxHash: "0xabc", BlockNumber: 123, GasUsed: 456},
+	chainMock := &mockChainClient{
+		anchorRes: &chain.AnchorResult{TxHash: "0xabc", BlockNumber: 123, GasUsed: 456},
 		verifyTs:  1700000000,
 	}
 
-	h := NewHandler(svc, chain)
+	h := NewHandler(svc, chainMock)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("user_address", actor)
@@ -192,7 +192,7 @@ func TestHandleAnchorMerkleBatch_Success(t *testing.T) {
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("expected %d, got %d (%s)", http.StatusOK, rec2.Code, rec2.Body.String())
 	}
-	if chain.anchorCalls != 1 {
-		t.Fatalf("expected 1 AnchorRoot call, got %d", chain.anchorCalls)
+	if chainMock.anchorCalls != 1 {
+		t.Fatalf("expected 1 AnchorRoot call, got %d", chainMock.anchorCalls)
 	}
 }
