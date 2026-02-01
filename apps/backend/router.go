@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,12 +14,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
 	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
+	"github.com/itspablomontes/fleming/apps/backend/internal/chain"
 	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
 	"github.com/itspablomontes/fleming/apps/backend/internal/middleware"
 	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	"github.com/itspablomontes/fleming/apps/backend/internal/timeline"
-	protocolchain "github.com/itspablomontes/fleming/pkg/protocol/chain"
 	"gorm.io/gorm"
 )
 
@@ -62,7 +63,7 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	timelineRepo := timeline.NewRepository(db)
 
 	// Optional: on-chain anchoring (disabled unless fully configured).
-	var chainClient *protocolchain.Client
+	var chainClient *chain.Client
 	anchorRPCURL := strings.TrimSpace(os.Getenv("ANCHOR_RPC_URL"))
 	if anchorRPCURL == "" && env == "dev" {
 		// In local docker-compose dev, the backend container can reach Anvil by service name.
@@ -70,11 +71,41 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	}
 	anchorContractAddress := strings.TrimSpace(os.Getenv("ANCHOR_CONTRACT_ADDRESS"))
 	anchorPrivateKey := strings.TrimSpace(os.Getenv("ANCHOR_PRIVATE_KEY"))
+
+	// Auto-Wiring: If contract address is missing in DEV, try to read from shared volume.
+	if anchorContractAddress == "" && env == "dev" {
+		deploymentsPath := "/workspace/deployments/deployments.json"
+		// Simple retry loop to wait for contracts-deploy to finish (only in dev!)
+		for i := 0; i < 30; i++ {
+			if _, err := os.Stat(deploymentsPath); err == nil {
+				content, err := os.ReadFile(deploymentsPath)
+				if err == nil {
+					var deployments struct {
+						Anchor string `json:"anchor"`
+					}
+					if err := json.Unmarshal(content, &deployments); err == nil && deployments.Anchor != "" {
+						anchorContractAddress = deployments.Anchor
+						slog.Info("auto-wired: loaded anchor contract from shared volume", "address", anchorContractAddress)
+
+						// If private key is also missing in dev, use Anvil default #0
+						if anchorPrivateKey == "" {
+							anchorPrivateKey = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+							slog.Info("auto-wired: using default anvil private key")
+						}
+						break
+					}
+				}
+			}
+			slog.Info("auto-wiring: waiting for deployments.json...", "attempt", i+1)
+			time.Sleep(1 * time.Second)
+		}
+	}
+
 	if anchorRPCURL != "" && anchorContractAddress != "" && anchorPrivateKey != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		c, err := protocolchain.NewClient(ctx, protocolchain.Config{
+		c, err := chain.NewClient(ctx, chain.Config{
 			RPCURL:          anchorRPCURL,
 			ContractAddress: anchorContractAddress,
 			PrivateKey:      anchorPrivateKey,
