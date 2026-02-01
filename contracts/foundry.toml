@@ -60,8 +60,8 @@ base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
 
 # Soldeer Package Manager
 [soldeer]
-remappings_generate = true
-remappings_regenerate = true
+remappings_generate = false
+remappings_regenerate = false
 remappings_location = "config"
 
 [dependencies]
