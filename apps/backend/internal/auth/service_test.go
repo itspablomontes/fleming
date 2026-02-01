@@ -48,7 +48,7 @@ func (m *MockAuditService) GetEntryByID(ctx context.Context, id string) (*intern
 func (m *MockAuditService) GetEntriesByResource(ctx context.Context, resourceID string) ([]internalAudit.AuditEntry, error) {
 	return nil, nil
 }
-func (m *MockAuditService) QueryEntries(ctx context.Context, filter audit.QueryFilter) ([]internalAudit.AuditEntry, error) {
+func (m *MockAuditService) QueryEntries(ctx context.Context, filter audit.QueryFilter) (*audit.QueryResult, error) {
 	return nil, nil
 }
 
