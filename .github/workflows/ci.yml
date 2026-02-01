@@ -12,6 +12,26 @@ env:
 
 jobs:
   # ------------------------------------------------------------------
+  # Change Detection (to avoid overlapping CI)
+  # ------------------------------------------------------------------
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      contracts: ${{ steps.filter.outputs.contracts }}
+    steps:
+      - name: Detect contract-related changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            contracts:
+              - "contracts/**"
+              - "pkg/protocol/chain/**"
+
+  # ------------------------------------------------------------------
   # Frontend Checks
   # ------------------------------------------------------------------
   web-check:
@@ -46,6 +66,48 @@ jobs:
         run: pnpm build
 
   # ------------------------------------------------------------------
+  # Contracts Checks (Foundry)
+  # ------------------------------------------------------------------
+  contracts-check:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    env:
+      FOUNDRY_PROFILE: ci
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install Soldeer dependencies
+        run: forge soldeer install
+        working-directory: ./contracts
+
+      - name: Show Forge version
+        run: forge --version
+
+      - name: Export contract ABIs (drift guard)
+        run: bash contracts/script/export-abis.sh
+
+      - name: Ensure ABI JSON is up to date
+        run: git diff --exit-code -- pkg/protocol/chain/abi/FlemingAnchor.abi.json
+
+      - name: Run Forge fmt
+        run: forge fmt --check
+        working-directory: ./contracts
+
+      - name: Run Forge build
+        run: forge build --sizes
+        working-directory: ./contracts
+
+      - name: Run Forge tests
+        run: forge test -vvv
+        working-directory: ./contracts
+
+  # ------------------------------------------------------------------
   # Backend Checks
   # ------------------------------------------------------------------
   backend-check:
@@ -78,9 +140,16 @@ jobs:
   # Build and Push Docker Image (Backend)
   # ------------------------------------------------------------------
   build-and-push:
-    needs: [backend-check]
+    needs: [backend-check, contracts-check]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      ${{
+        always() &&
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/main' &&
+        needs.backend-check.result == 'success' &&
+        (needs.contracts-check.result == 'success' || needs.contracts-check.result == 'skipped')
+      }}
     permissions:
       contents: read
       packages: write

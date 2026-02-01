@@ -15,6 +15,9 @@ if [ ! -f .env ]; then
     echo "ACME_EMAIL=your-email@example.com"
     echo "DATABASE_URL=postgres://..."
     echo "JWT_SECRET=..."
+    echo "ANCHOR_RPC_URL=https://..."
+    echo "ANCHOR_CONTRACT_ADDRESS=0x..."
+    echo "ANCHOR_PRIVATE_KEY=..."
     exit 1
 fi
 

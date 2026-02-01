@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -8,11 +9,14 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/itspablomontes/fleming/apps/backend/internal/audit"
+	"github.com/itspablomontes/fleming/apps/backend/internal/chain"
 	"github.com/itspablomontes/fleming/apps/backend/internal/common"
+	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
 	"github.com/itspablomontes/fleming/apps/backend/internal/storage"
 	"github.com/itspablomontes/fleming/apps/backend/internal/timeline"
@@ -77,6 +81,9 @@ func generateUUID() string {
 
 func main() {
 	ctx := context.Background()
+
+	// Load .env manually for host execution
+	loadEnv()
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -148,16 +155,20 @@ func main() {
 	timelineService := timeline.NewService(timelineRepo, auditService, storageService, "fleming")
 
 	// Mock Data Constants
-	patientId := "0x742d35Cc6634C0532925a3b844Bc9e7595f"
+	// Canonical address normalization (Phase 1 protocol rule: all addresses are lowercased)
+	overrideAddress = strings.ToLower(os.Getenv("DEV_OVERRIDE_WALLET_ADDRESS"))
+	patientId := "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" // Anvil #0 (Lowercased)
 	if overrideAddress != "" {
 		patientId = overrideAddress
-		log.Printf("Using override patient ID: %s", patientId)
+		log.Printf("Using override patient ID (lowercased): %s", patientId)
+	} else {
+		log.Printf("Using default patient ID (lowercased): %s", patientId)
 	}
 
-	// Doctor addresses for consent grants
-	doctor1 := "0xDoctor1AddressForConsentTesting"
-	doctor2 := "0xDoctor2AddressForConsentTesting"
-	doctor3 := "0xDoctor3AddressForConsentTesting"
+	// Standard Anvil test addresses (Lowercased)
+	doctor1 := "0x70997970c51812dc3a010c7d01b50e0d17dc79c8" // Anvil #1
+	doctor2 := "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc" // Anvil #2
+	doctor3 := "0x90f79bf6eb2c4f870365e785982e1f101e93b906" // Anvil #3
 
 	// Helper to parse time
 	parseTime := func(layout, value string) time.Time {
@@ -334,9 +345,14 @@ func main() {
 		re.Event.ID = uuid
 
 		// Use service to add event (this generates audit logs)
+		// TimelineEvent struct handles patientId internally
+		re.Event.PatientID = patientId
 		if err := timelineService.AddEvent(ctx, &re.Event); err != nil {
-			log.Fatalf("Failed to seed event %s: %v", re.MockID, err)
+			log.Printf("Failed to seed event %s: %v", re.MockID, err)
+			return
 		}
+		// Prevent hash chain collisions with a small delay
+		time.Sleep(5 * time.Millisecond)
 	}
 
 	// 2. Create Edges with logical relationships
@@ -382,6 +398,8 @@ func main() {
 	}
 
 	log.Printf("Seeding %d edges...", len(rawEdges))
+	// NOTE: Creating edges does not currently emit audit entries (intentional for MVP).
+	// The seeded audit trail covers event CRUD + consent operations; relationship edges are derived graph structure.
 	for _, re := range rawEdges {
 		fromUUID, ok1 := idMap[re.FromMockID]
 		toUUID, ok2 := idMap[re.ToMockID]
@@ -485,6 +503,105 @@ func main() {
 	}
 	summaryJson, _ := json.MarshalIndent(summary, "", "  ")
 	fmt.Println(string(summaryJson))
+
+	// 4. Seed On-Chain Anchors (Dev/Local only)
+	env := config.NormalizeEnv(os.Getenv("ENV"))
+	if env == "dev" {
+		log.Println("Attempting to anchor seeded data to local chain...")
+		seedChainAnchoring(ctx, auditService, patientId, env)
+	}
+}
+
+func seedChainAnchoring(ctx context.Context, service audit.Service, actor string, env string) {
+	// Auto-wire configuration (copy-pasta from router.go for now, ideal to refactor to shared config)
+	anchorRPCURL := strings.TrimSpace(os.Getenv("ANCHOR_RPC_URL"))
+	if anchorRPCURL == "" {
+		if _, err := os.Stat("/.dockerenv"); err == nil {
+			anchorRPCURL = "http://anvil:8545"
+		} else {
+			anchorRPCURL = "http://localhost:8545"
+		}
+	}
+	anchorContractAddress := strings.TrimSpace(os.Getenv("ANCHOR_CONTRACT_ADDRESS"))
+	anchorPrivateKey := strings.TrimSpace(os.Getenv("ANCHOR_PRIVATE_KEY"))
+
+	if anchorContractAddress == "" {
+		// Try container path first, then try to find the file by traversing up (for host execution)
+		paths := []string{
+			"/workspace/deployments/deployments.json",
+			"/workspace/output/deployments.json",
+		}
+
+		// Add relative paths based on current directory
+		cwd, _ := os.Getwd()
+		curr := cwd
+		for i := 0; i < 5; i++ {
+			paths = append(paths, filepath.Join(curr, "contracts/deployments.json"))
+			paths = append(paths, filepath.Join(curr, "deployments/deployments.json"))
+			curr = filepath.Dir(curr)
+		}
+
+		for _, p := range paths {
+			if _, err := os.Stat(p); err == nil {
+				content, err := os.ReadFile(p)
+				if err == nil {
+					var deployments struct {
+						Anchor string `json:"anchor"`
+					}
+					if err := json.Unmarshal(content, &deployments); err == nil && deployments.Anchor != "" {
+						anchorContractAddress = deployments.Anchor
+						log.Printf("Auto-wired anchor contract from %s: %s", p, anchorContractAddress)
+
+						if anchorPrivateKey == "" {
+							anchorPrivateKey = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" // Anvil #0
+							log.Println("Using default Anvil private key")
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if anchorContractAddress == "" {
+		log.Println("Skipping chain anchoring: ANCHOR_CONTRACT_ADDRESS not found and auto-wiring failed")
+		return
+	}
+
+	chainClient, err := chain.NewClient(ctx, chain.Config{
+		RPCURL:          anchorRPCURL,
+		ContractAddress: anchorContractAddress,
+		PrivateKey:      anchorPrivateKey,
+	})
+	if err != nil {
+		log.Printf("Failed to initialize chain client: %v", err)
+		return
+	}
+	defer chainClient.Close()
+
+	// Build Merkle Tree for all time
+	startTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endTime := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	batch, tree, err := service.BuildMerkleTree(ctx, actor, startTime, endTime)
+	if err != nil {
+		log.Printf("Failed to build Merkle tree for seeding: %v", err)
+		return
+	}
+	log.Printf("Built Merkle Batch %s (Root: %s, Entries: %d)", batch.ID, tree.Root, batch.EntryCount)
+
+	// Anchor it
+	updatedBatch, err := service.AnchorBatch(ctx, actor, batch.ID, chainClient)
+	if err != nil {
+		log.Printf("Failed to anchor batch: %v", err)
+		return
+	}
+
+	hash := ""
+	if updatedBatch.AnchorTxHash != nil {
+		hash = *updatedBatch.AnchorTxHash
+	}
+	log.Printf("SUCCESS: Anchored batch to chain! Tx: %s", hash)
 }
 
 func findEventByMockID(events []MockEvent, mockID string) *MockEvent {
@@ -494,4 +611,49 @@ func findEventByMockID(events []MockEvent, mockID string) *MockEvent {
 		}
 	}
 	return nil
+}
+
+func loadEnv() {
+	// Search for .env file starting from seeder and walking up to repo root
+	cwd, _ := os.Getwd()
+	curr := cwd
+	var envPath string
+	for i := 0; i < 5; i++ {
+		p := filepath.Join(curr, ".env")
+		if _, err := os.Stat(p); err == nil {
+			envPath = p
+			break
+		}
+		curr = filepath.Dir(curr)
+	}
+
+	if envPath == "" {
+		return
+	}
+
+	file, err := os.Open(envPath)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			// Strip quotes if present
+			val = strings.Trim(val, `"'`)
+			if os.Getenv(key) == "" {
+				os.Setenv(key, val)
+				log.Printf("Env override: %s set from .env", key)
+			}
+		}
+	}
+	log.Printf("Loaded environment from %s", envPath)
 }

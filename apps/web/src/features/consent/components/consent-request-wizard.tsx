@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toChecksumAddress, validateUserAddressInput } from "@/lib/address";
 import type { EthAddress } from "@/types/ethereum";
 
 import { requestConsent } from "../api";
@@ -28,7 +29,9 @@ const consentRequestSchema = z.object({
 	grantor: z
 		.string()
 		.trim()
-		.regex(/^0x[a-fA-F0-9]{40}$/, "Enter a valid Ethereum address"),
+		.refine((value) => validateUserAddressInput(value).ok, {
+			message: "Enter a valid Ethereum address",
+		}),
 	permissions: z
 		.array(z.enum(["read", "write", "share"]))
 		.min(1, "Select at least one permission"),
@@ -89,7 +92,7 @@ export function ConsentRequestWizard({
 				return;
 			}
 			const payload: ConsentRequestPayload = {
-				grantor: parsed.data.grantor as EthAddress,
+				grantor: toChecksumAddress(parsed.data.grantor) as EthAddress,
 				permissions: parsed.data.permissions as ConsentPermission[],
 				reason: parsed.data.reason?.trim() || undefined,
 				durationDays: parsed.data.durationDays,
@@ -102,8 +105,7 @@ export function ConsentRequestWizard({
 	const canProceed = useMemo(() => {
 		switch (currentStep) {
 			case 0:
-				return consentRequestSchema.shape.grantor.safeParse(values.grantor)
-					.success;
+				return validateUserAddressInput(values.grantor).ok;
 			case 1:
 				return consentRequestSchema.shape.permissions.safeParse(
 					values.permissions,

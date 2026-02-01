@@ -2,6 +2,7 @@ import type { JSX } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { validateUserAddressInput } from "@/lib/address";
 import { cn } from "@/lib/utils";
 
 import type { ConsentForm } from "../consent-form-types";
@@ -10,15 +11,13 @@ interface PatientStepProps {
 	form: ConsentForm;
 }
 
-const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-
 export function PatientStep({ form }: PatientStepProps): JSX.Element {
 	return (
 		<form.Field
 			name="grantor"
 			validators={{
 				onChange: ({ value }: { value: string }) =>
-					addressRegex.test(value.trim())
+					validateUserAddressInput(value).ok
 						? undefined
 						: "Enter a valid Ethereum address",
 			}}
@@ -30,7 +29,13 @@ export function PatientStep({ form }: PatientStepProps): JSX.Element {
 						<Input
 							id={field.name}
 							value={field.state.value}
-							onBlur={field.handleBlur}
+							onBlur={() => {
+								const res = validateUserAddressInput(field.state.value);
+								if (res.ok) {
+									field.handleChange(res.checksum);
+								}
+								field.handleBlur();
+							}}
 							onChange={(event) => field.handleChange(event.target.value)}
 							placeholder="0x..."
 							aria-invalid={Boolean(field.state.meta.errors.length)}

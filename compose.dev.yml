@@ -9,10 +9,48 @@ services:
       - ./apps/backend:/workspace/apps/backend
       - ./pkg:/workspace/pkg
       - ./go.work:/workspace/go.work
+      - ./go.work:/workspace/go.work
       - ./go.work.sum:/workspace/go.work.sum
+      - deployments:/workspace/deployments
     working_dir: /workspace/apps/backend
     environment:
       - ENV=dev
+    env_file:
+      - .env
+
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    entrypoint: [ "anvil" ]
+    command: [ "--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337" ]
+    ports:
+      - "8545:8545"
+    networks:
+      - fleming-net
+    healthcheck:
+      test: [ "CMD-SHELL", "cast block-number --rpc-url http://127.0.0.1:8545 >/dev/null 2>&1 || exit 1" ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 2s
+
+  contracts-deploy:
+    image: ghcr.io/foundry-rs/foundry:latest
+    profiles:
+      - contracts
+    working_dir: /workspace/contracts
+    volumes:
+      - ./:/workspace
+      - deployments:/workspace/output
+    depends_on:
+      anvil:
+        condition: service_healthy
+    user: root
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: [ "forge script script/DeployFleming.s.sol --rpc-url http://anvil:8545 --broadcast -vvvv && cp deployments.json /workspace/output/deployments.json" ]
+    env_file:
+      - .env
+    networks:
+      - fleming-net
 
   web:
     build:
@@ -37,3 +75,4 @@ services:
   # Add top-level volumes to ensure persistence and isolation
 volumes:
   pnpm_store:
+  deployments:

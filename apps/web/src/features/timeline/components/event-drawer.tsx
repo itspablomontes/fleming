@@ -31,6 +31,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useVault } from "@/features/auth/contexts/vault-context";
 import { API_URL } from "@/lib/api-client";
+import { validateUserAddressInput } from "@/lib/address";
 import {
 	decryptChunkedBuffer,
 	decryptFile,
@@ -172,6 +173,11 @@ export function EventDrawer({
 			if (!shareAddress.trim() || !shareSignature.trim() || !shareSalt.trim()) {
 				throw new Error("Recipient address, signature, and salt are required.");
 			}
+			const addressRes = validateUserAddressInput(shareAddress);
+			if (!addressRes.ok) {
+				throw new Error(addressRes.error);
+			}
+			const checksumGrantee = addressRes.checksum;
 
 			const keyResponse = await getFileKey({
 				eventId: event.id,
@@ -192,7 +198,7 @@ export function EventDrawer({
 			await shareFileKey({
 				eventId: event.id,
 				fileId: shareFile.id,
-				grantee: shareAddress.trim(),
+				grantee: checksumGrantee,
 				wrappedKey: recipientWrappedHex,
 			});
 
@@ -471,6 +477,12 @@ export function EventDrawer({
 								id="share-address"
 								value={shareAddress}
 								onChange={(e) => setShareAddress(e.target.value)}
+								onBlur={() => {
+									const res = validateUserAddressInput(shareAddress);
+									if (res.ok) {
+										setShareAddress(res.checksum);
+									}
+								}}
 								placeholder="0x..."
 							/>
 						</div>

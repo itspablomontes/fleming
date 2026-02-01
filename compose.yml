@@ -30,7 +30,8 @@ services:
       minio:
         condition: service_started
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null 2>&1 || exit 1" ]
+      # Use wget (busybox) for maximum portability across dev/prod images.
+      test: [ "CMD-SHELL", "wget -q -O - http://localhost:8080/health >/dev/null 2>&1 || exit 1" ]
       interval: 2s
       timeout: 3s
       retries: 30

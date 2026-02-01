@@ -1,5 +1,6 @@
 import { Check, Copy } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { getAddress } from "viem";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,23 +65,26 @@ export function AddressDisplay({
 	displayName,
 	showAvatar = true,
 	showCopy = true,
-	truncate = true,
+	truncate = false,
 	className,
 }: AddressDisplayProps) {
 	const [copied, setCopied] = useState(false);
 
 	const gradient = useMemo(() => addressToGradient(address), [address]);
-	const displayAddress = truncate ? truncateAddress(address) : address;
+	const checksumAddress = useMemo(() => getAddress(address), [address]);
+	const displayAddress = truncate
+		? truncateAddress(checksumAddress)
+		: checksumAddress;
 
 	const handleCopy = useCallback(async () => {
 		try {
-			await navigator.clipboard.writeText(address);
+			await navigator.clipboard.writeText(checksumAddress);
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
 		} catch (err) {
 			console.error("Failed to copy address:", err);
 		}
-	}, [address]);
+	}, [checksumAddress]);
 
 	return (
 		<div className={cn("inline-flex items-center gap-2", className)}>

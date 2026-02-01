@@ -3,6 +3,7 @@ package timeline
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,19 +25,28 @@ func (m *MockAuditService) Record(ctx context.Context, actor string, action prot
 func (m *MockAuditService) GetLatestEntries(ctx context.Context, actor string, limit int) ([]audit.AuditEntry, error) {
 	return nil, nil
 }
-func (m *MockAuditService) VerifyIntegrity(ctx context.Context) (bool, error) {
+func (m *MockAuditService) VerifyIntegrity(ctx context.Context, actor string) (bool, error) {
 	return true, nil
 }
-func (m *MockAuditService) BuildMerkleTree(ctx context.Context, startTime time.Time, endTime time.Time) (*audit.AuditBatch, *protocol.MerkleTree, error) {
+func (m *MockAuditService) BuildMerkleTree(ctx context.Context, actor string, startTime time.Time, endTime time.Time) (*audit.AuditBatch, *protocol.MerkleTree, error) {
 	return nil, nil, nil
 }
-func (m *MockAuditService) GetMerkleRoot(ctx context.Context, batchID string) (string, error) {
-	return "", nil
+func (m *MockAuditService) GetBatch(ctx context.Context, actor string, batchID string) (*audit.AuditBatch, error) {
+	return nil, nil
+}
+func (m *MockAuditService) ListBatches(ctx context.Context, actor string, limit int, offset int) ([]audit.AuditBatch, error) {
+	return nil, nil
+}
+func (m *MockAuditService) AnchorBatch(ctx context.Context, actor string, batchID string, chainClient audit.ChainAnchorer) (*audit.AuditBatch, error) {
+	return nil, nil
+}
+func (m *MockAuditService) GetBatchByRoot(ctx context.Context, actor string, rootHash string) (*audit.AuditBatch, error) {
+	return nil, nil
 }
 func (m *MockAuditService) VerifyMerkleProof(root string, entryHash string, proof *protocol.Proof) bool {
 	return true
 }
-func (m *MockAuditService) GetEntriesForMerkle(ctx context.Context, startTime time.Time, endTime time.Time) ([]audit.AuditEntry, error) {
+func (m *MockAuditService) GetEntriesForMerkle(ctx context.Context, actor string, startTime time.Time, endTime time.Time) ([]audit.AuditEntry, error) {
 	return nil, nil
 }
 func (m *MockAuditService) GetEntryByID(ctx context.Context, id string) (*audit.AuditEntry, error) {
@@ -49,13 +59,34 @@ func (m *MockAuditService) QueryEntries(ctx context.Context, filter protocol.Que
 	return nil, nil
 }
 
+type CapturingAuditService struct {
+	MockAuditService
+
+	calls        int
+	lastActor    string
+	lastAction   protocol.Action
+	lastResource protocol.ResourceType
+	lastID       string
+	lastMetadata common.JSONMap
+}
+
+func (c *CapturingAuditService) Record(ctx context.Context, actor string, action protocol.Action, resourceType protocol.ResourceType, resourceID string, metadata common.JSONMap) error {
+	c.calls++
+	c.lastActor = actor
+	c.lastAction = action
+	c.lastResource = resourceType
+	c.lastID = resourceID
+	c.lastMetadata = metadata
+	return nil
+}
+
 type MockStorage struct{}
 
 func (m *MockStorage) Put(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, contentType string) (string, error) {
 	return objectName, nil
 }
 func (m *MockStorage) Get(ctx context.Context, bucketName, objectName string) (io.ReadCloser, error) {
-	return nil, nil
+	return io.NopCloser(strings.NewReader("data")), nil
 }
 func (m *MockStorage) Delete(ctx context.Context, bucketName, objectName string) error {
 	return nil
@@ -80,6 +111,7 @@ type MockRepo struct {
 	nextID int
 	events []timeline.Event
 	edges  []timeline.Edge
+	files  []EventFile
 }
 
 func (m *MockRepo) GetEvent(ctx context.Context, id types.ID) (*timeline.Event, error) {
@@ -167,19 +199,35 @@ func (m *MockRepo) DeleteEdge(ctx context.Context, id types.ID) error {
 
 func (m *MockRepo) CreateFile(ctx context.Context, file *EventFile) error { return nil }
 func (m *MockRepo) GetFileByID(ctx context.Context, id string) (*EventFile, error) {
-	return nil, nil
+	for i := range m.files {
+		if m.files[i].ID == id {
+			f := m.files[i]
+			return &f, nil
+		}
+	}
+	return nil, fmt.Errorf("file not found")
 }
 func (m *MockRepo) GetFilesByEventID(ctx context.Context, eventID string) ([]EventFile, error) {
-	return nil, nil
+	var out []EventFile
+	for _, f := range m.files {
+		if f.EventID == eventID {
+			out = append(out, f)
+		}
+	}
+	return out, nil
 }
-func (m *MockRepo) UpsertFileAccess(ctx context.Context, confirmations *EventFileAccess) error { return nil }
+func (m *MockRepo) UpsertFileAccess(ctx context.Context, confirmations *EventFileAccess) error {
+	return nil
+}
 func (m *MockRepo) GetFileAccess(ctx context.Context, fileID string, grantee string) (*EventFileAccess, error) {
 	return nil, nil
 }
 func (m *MockRepo) GetGraphData(ctx context.Context, patientID string) ([]TimelineEvent, []EventEdge, error) {
 	return []TimelineEvent{}, []EventEdge{}, nil
 }
-func (m *MockRepo) Transaction(ctx context.Context, fn func(repo Repository) error) error { return fn(m) }
+func (m *MockRepo) Transaction(ctx context.Context, fn func(repo Repository) error) error {
+	return fn(m)
+}
 
 func TestService_CreateEvent(t *testing.T) {
 	repo := &MockRepo{}
@@ -235,5 +283,66 @@ func TestService_GetTimelineForPatient_FiltersByPatient(t *testing.T) {
 	}
 	if len(got) != 1 {
 		t.Fatalf("GetTimelineForPatient() count = %d, want %d", len(got), 1)
+	}
+}
+
+func TestService_GetFile_AuditsToRecordOwner(t *testing.T) {
+	repo := &MockRepo{}
+	auditSvc := &CapturingAuditService{}
+	storageSvc := &MockStorage{}
+	svc := NewService(repo, auditSvc, storageSvc, "test-bucket")
+
+	patientID, err := types.NewWalletAddress("0x0000000000000000000000000000000000000123")
+	if err != nil {
+		t.Fatalf("unexpected patient id error: %v", err)
+	}
+
+	event, err := timeline.NewEventBuilder().
+		WithPatientID(patientID).
+		WithType(timeline.EventLabResult).
+		WithTitle("Blood Test").
+		WithTimestamp(time.Now()).
+		Build()
+	if err != nil {
+		t.Fatalf("unexpected event build error: %v", err)
+	}
+	event.ID = types.ID("evt-1")
+	repo.events = append(repo.events, *event)
+
+	repo.files = append(repo.files, EventFile{
+		ID:       "file-1",
+		EventID:  event.ID.String(),
+		BlobRef:  "blob-1",
+		FileName: "report.pdf",
+		MimeType: "application/pdf",
+		FileSize: 1234,
+	})
+
+	requester := "0x0000000000000000000000000000000000000abc"
+	_, rc, err := svc.GetFile(context.Background(), "file-1", requester)
+	if err != nil {
+		t.Fatalf("GetFile() error = %v", err)
+	}
+	if rc == nil {
+		t.Fatalf("expected non-nil reader")
+	}
+
+	if auditSvc.calls != 1 {
+		t.Fatalf("expected 1 audit call, got %d", auditSvc.calls)
+	}
+	if auditSvc.lastActor != patientID.String() {
+		t.Fatalf("expected audit actor (owner) %q, got %q", patientID.String(), auditSvc.lastActor)
+	}
+	if auditSvc.lastAction != protocol.ActionDownload {
+		t.Fatalf("expected action %q, got %q", protocol.ActionDownload, auditSvc.lastAction)
+	}
+	if auditSvc.lastResource != protocol.ResourceFile {
+		t.Fatalf("expected resource %q, got %q", protocol.ResourceFile, auditSvc.lastResource)
+	}
+	if auditSvc.lastID != "file-1" {
+		t.Fatalf("expected resourceID %q, got %q", "file-1", auditSvc.lastID)
+	}
+	if auditSvc.lastMetadata == nil || auditSvc.lastMetadata["performedBy"] != requester {
+		t.Fatalf("expected metadata performedBy=%q, got %v", requester, auditSvc.lastMetadata)
 	}
 }

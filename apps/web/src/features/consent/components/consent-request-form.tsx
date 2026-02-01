@@ -15,6 +15,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { toChecksumAddress, validateUserAddressInput } from "@/lib/address";
 import type { EthAddress } from "@/types/ethereum";
 
 import { requestConsent } from "../api";
@@ -58,7 +59,9 @@ const consentRequestSchema = z.object({
 	grantor: z
 		.string()
 		.trim()
-		.regex(/^0x[a-fA-F0-9]{40}$/, "Enter a valid Ethereum address"),
+		.refine((value) => validateUserAddressInput(value).ok, {
+			message: "Enter a valid Ethereum address",
+		}),
 	permissions: z
 		.array(z.enum(["read", "write", "share"]))
 		.min(1, "Select at least one permission"),
@@ -111,7 +114,7 @@ export function ConsentRequestForm({
 				return;
 			}
 			const payload: ConsentRequestPayload = {
-				grantor: parsed.data.grantor as EthAddress,
+				grantor: toChecksumAddress(parsed.data.grantor) as EthAddress,
 				permissions: parsed.data.permissions,
 				reason: parsed.data.reason?.trim() || undefined,
 				durationDays: parsed.data.durationDays,
@@ -133,7 +136,7 @@ export function ConsentRequestForm({
 				name="grantor"
 				validators={{
 					onChange: ({ value }) =>
-						consentRequestSchema.shape.grantor.safeParse(value).success
+						validateUserAddressInput(value).ok
 							? undefined
 							: "Enter a valid Ethereum address",
 				}}
@@ -144,7 +147,13 @@ export function ConsentRequestForm({
 						<Input
 							id={field.name}
 							value={field.state.value}
-							onBlur={field.handleBlur}
+							onBlur={() => {
+								const res = validateUserAddressInput(field.state.value);
+								if (res.ok) {
+									field.handleChange(res.checksum);
+								}
+								field.handleBlur();
+							}}
 							onChange={(event) => field.handleChange(event.target.value)}
 							placeholder="0x..."
 							aria-invalid={Boolean(field.state.meta.errors.length)}

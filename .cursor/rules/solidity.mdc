@@ -1,0 +1,798 @@
+---
+trigger: glob
+description: Solidity + Foundry smart contract development rules - Peak Engineering Edition
+globs: "*.sol"
+---
+
+# Solidity + Foundry Rules - Peak Engineering Edition
+(Solidity 0.8.30+, Foundry/Forge, Base L2)
+
+> **See also**: general.mdc for project philosophy, architecture.mdc for system context.
+
+We write **minimal, gas-efficient, secure, and auditable** smart contracts optimized for Base L2.
+
+---
+
+## 1. Philosophy
+
+**Core Principles:**
+- **Immutability > Upgradability**: Only use proxies if absolutely necessary
+- **Events > Storage**: Off-chain indexing is cheaper and more flexible
+- **Minimal Surface Area**: Fewer functions = fewer attack vectors
+- **Fail Fast**: Revert early with descriptive custom errors
+- **Gas Paranoia**: Every opcode costs money on Base L2
+
+**Zero Tolerance:**
+- No `require` with string messages (use custom errors)
+- No unbounded loops or dynamic arrays in storage
+- No external calls before state changes (CEI violations)
+- No floating pragmas (`^0.8.30` ok, `>=0.8.0` not ok)
+
+---
+
+## 2. Tooling & Environment
+
+### Required Stack
+
+| Tool | Purpose | Command |
+|------|---------|---------|
+| **Forge** | Build, test, deploy | `forge build/test/script` |
+| **Anvil** | Local EVM node | `anvil --fork-url $RPC` |
+| **Cast** | Chain interaction | `cast call/send/balance` |
+| **Slither** | Static analysis | `slither src/ --filter-paths "lib/"` |
+| **forge lint** | Built-in linting | `forge lint` |
+
+### Project Structure
+```
+contracts/
+├── foundry.toml          # Profile: default, ci, gas
+├── src/
+│   ├── FlemingAnchor.sol       # Phase B: Merkle anchoring
+│   ├── VCRegistry.sol          # Phase C.1: Revocation
+│   ├── ZKVerifier.sol          # Phase C.2: ZK verification
+│   └── libraries/
+│       └── Bitmap.sol          # Gas-efficient bitmap ops
+├── test/
+│   ├── unit/                   # Unit tests (*.t.sol)
+│   ├── fuzz/                   # Fuzz tests (*Fuzz.t.sol)
+│   ├── invariant/              # Invariant tests (*Invar.t.sol)
+│   └── harness/                # Test harness contracts
+├── script/
+│   ├── DeployFleming.s.sol     # All deployments
+│   └── utils/
+│       └── BaseScript.sol      # Shared deployment logic
+└── lib/
+    ├── forge-std               # Testing utilities
+    └── openzeppelin-contracts  # Security primitives (v5.0+)
+```
+
+---
+
+## 3. Solidity Configuration
+
+### Version & Compiler
+
+```toml
+# foundry.toml
+[profile.default]
+solc = "0.8.30"              # Latest stable, security fixes
+optimizer = true
+optimizer_runs = 200         # Balance: size vs gas
+via_ir = false               # Enable only if stack too deep
+
+[profile.gas]                # Production deployments
+optimizer_runs = 999999      # Max gas optimization
+via_ir = true
+
+[profile.ci]
+fuzz_runs = 10000            # Thorough fuzzing in CI
+verbosity = 3
+```
+
+### Version Rules
+- **Use exact version**: `pragma solidity 0.8.30;` for production
+- **No floating pragmas**: Never use `>=0.8.0` or `^0.8.0` in production contracts
+- **Latest stable**: Stay within 1-2 versions of latest for security patches
+
+---
+
+## 4. Security Patterns (Non-Negotiable)
+
+### 4.1 Checks-Effects-Interactions (CEI)
+
+```solidity
+// ✅ CORRECT: Check → Effect → Interaction
+function revoke(uint256 vcId) external {
+    // CHECKS
+    if (msg.sender != owner) revert Unauthorized();
+    if (isRevoked(vcId)) revert AlreadyRevoked(vcId);
+    
+    // EFFECTS
+    _setRevoked(vcId, true);
+    
+    // INTERACTIONS (last!)
+    emit VCRevoked(vcId, msg.sender, block.timestamp);
+}
+
+// ❌ WRONG: Interaction before effects
+function revoke(uint256 vcId) external {
+    emit VCRevoked(vcId, msg.sender, block.timestamp);  // Interaction first!
+    _setRevoked(vcId, true);                            // Effect after
+}
+```
+
+### 4.2 Custom Errors (Mandatory)
+
+```solidity
+// ✅ CORRECT: Custom errors (cheaper, selectors for tooling)
+error ZeroRoot();
+error AlreadyAnchored(bytes32 root);
+error Unauthorized(address caller);
+error InvalidBitmapSlot(uint256 slot);
+
+function anchor(bytes32 root) external {
+    if (root == bytes32(0)) revert ZeroRoot();
+    if (anchors[root] != 0) revert AlreadyAnchored(root);
+    // ...
+}
+
+// ❌ WRONG: String errors (expensive, 50+ gas per string)
+require(root != bytes32(0), "Root cannot be zero");
+```
+
+### 4.3 Access Control
+
+```solidity
+// Use OpenZeppelin's Ownable or AccessControl
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+contract FlemingAnchor is Ownable {
+    error Unauthorized(address caller);
+    
+    modifier onlyOwnerOrOperator() {
+        if (msg.sender != owner() && !operators[msg.sender]) {
+            revert Unauthorized(msg.sender);
+        }
+        _;
+    }
+}
+```
+
+### 4.4 Reentrancy Protection (Future-Proofing)
+
+```solidity
+// Use ReentrancyGuard for any value-handling functions
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+contract VCRegistry is ReentrancyGuard {
+    function processFee() external nonReentrant {
+        // Even if you don't handle value now, future-proof it
+    }
+}
+```
+
+---
+
+## 5. Gas Optimization (Base L2 Focus)
+
+### 5.1 Bitmap Pattern (Critical for VC Registry)
+
+```solidity
+// ✅ Store 256 VCs per slot (6,553% more efficient than bool mapping)
+library Bitmap {
+    function set(uint256[] storage bitmap, uint256 index) internal {
+        uint256 slot = index >> 8;        // index / 256
+        uint256 offset = index & 0xFF;    // index % 256
+        bitmap[slot] |= (1 << offset);
+    }
+    
+    function get(uint256[] storage bitmap, uint256 index) internal view returns (bool) {
+        uint256 slot = index >> 8;
+        uint256 offset = index & 0xFF;
+        return (bitmap[slot] >> offset) & 1 == 1;
+    }
+}
+
+// Usage: ~20k gas vs ~5k gas for bool mapping
+```
+
+### 5.2 Storage Packing
+
+```solidity
+// ✅ Pack small types together
+struct Anchor {
+    uint128 timestamp;    // Enough until year 36812
+    uint64 blockNumber;   // Enough for 10^19 blocks
+    uint64 metadata;      // Future extension slot
+}
+
+mapping(bytes32 => Anchor) public anchors;
+
+// ❌ Don't leave gaps
+struct BadAnchor {
+    uint256 timestamp;    // Wastes 128 bits
+    uint256 blockNumber;  // Wastes 192 bits
+}
+```
+
+### 5.3 Event-Driven Over Storage
+
+```solidity
+// ✅ Store hash only, emit details
+function anchor(bytes32 root) external {
+    if (anchors[root] != 0) revert AlreadyAnchored(root);
+    anchors[root] = block.timestamp;
+    
+    // Off-chain indexing is free
+    emit RootAnchored(
+        root,
+        block.timestamp,
+        block.number,
+        msg.sender
+    );
+}
+
+// ❌ Don't store full data on-chain
+mapping(bytes32 => string) public fullData;  // Expensive!
+```
+
+### 5.4 Calldata vs Memory
+
+```solidity
+// ✅ Use calldata for external function parameters
+function verifyProof(
+    uint256[2] calldata a,           // calldata = cheaper
+    uint256[2][2] calldata b,
+    uint256[2] calldata c,
+    uint256[] calldata publicInputs
+) external view returns (bool) {
+    // ...
+}
+
+// ❌ Memory copies data unnecessarily
+function badVerifyProof(uint256[2] memory a) external {
+    // Memory = unnecessary copy = +3k gas
+}
+```
+
+---
+
+## 6. Base L2 Specific Patterns
+
+### 6.1 Gas Cost Targets
+
+Target costs on Base L2 (at 0.02 gwei):
+
+| Operation | Gas Target | Cost |
+|-----------|------------|------|
+| Merkle anchor | < 50k | ~$0.001 |
+| VC revocation | < 45k | ~$0.001 |
+| ZK verification | < 300k | ~$0.007 |
+| DID anchor | < 80k | ~$0.002 |
+
+### 6.2 Deterministic Deployments (CREATE2)
+
+```solidity
+// Same address across testnet/mainnet
+function deployDeterministic(
+    bytes memory creationCode,
+    bytes32 salt
+) internal returns (address) {
+    address deployed;
+    assembly {
+        deployed := create2(0, add(creationCode, 0x20), mload(creationCode), salt)
+    }
+    require(deployed != address(0), "CREATE2 failed");
+    return deployed;
+}
+```
+
+### 6.3 Block Timing Assumptions
+
+```solidity
+// Base L2: 2 second block time (different from mainnet!)
+uint256 constant BLOCK_TIME = 2 seconds;
+
+function timeUntilExpiry(uint256 blocks) external pure returns (uint256) {
+    return blocks * BLOCK_TIME;
+}
+```
+
+---
+
+## 7. Testing Standards
+
+### 7.1 Test Coverage Requirements
+
+- **Line coverage**: > 95%
+- **Branch coverage**: > 90%
+- **All public functions**: Unit tests
+- **All user inputs**: Fuzz tests
+- **System invariants**: Invariant tests
+
+### 7.2 Test Naming Convention
+
+```solidity
+// Standard test
+test_Description()                           // Happy path
+test_RevertIf_Condition()                     // Revert conditions
+test_RevertWhen_State()                       // State-based reverts
+
+// Fuzz test  
+testFuzz_Description(type param)             // Property-based
+
+// Fork test (against real chain)
+testFork_Description()                       // Integration with real state
+testForkFuzz_Description(type param)         // Fuzz + fork
+
+// Invariant test (via handler)
+invariant_Description()                      // Property that always holds
+```
+
+### 7.3 Test Structure Template
+
+```solidity
+// test/unit/FlemingAnchor.t.sol
+contract FlemingAnchorTest is Test {
+    FlemingAnchor anchor;
+    
+    event RootAnchored(bytes32 indexed root, uint256 timestamp, uint256 blockNumber, address indexed anchorer);
+    
+    function setUp() public {
+        anchor = new FlemingAnchor();
+    }
+    
+    // ============ UNIT TESTS ============
+    
+    function test_AnchorStoresTimestamp() public {
+        bytes32 root = keccak256("test_root");
+        
+        uint256 tsBefore = block.timestamp;
+        anchor.anchor(root);
+        uint256 tsAfter = block.timestamp;
+        
+        uint256 storedTs = anchor.anchors(root);
+        assertEq(storedTs, tsBefore);
+        assertLe(storedTs, tsAfter);
+    }
+    
+    function test_RevertIf_AlreadyAnchored() public {
+        bytes32 root = keccak256("test_root");
+        anchor.anchor(root);
+        
+        vm.expectRevert(abi.encodeWithSelector(FlemingAnchor.AlreadyAnchored.selector, root));
+        anchor.anchor(root);
+    }
+    
+    function test_RevertIf_ZeroRoot() public {
+        vm.expectRevert(FlemingAnchor.ZeroRoot.selector);
+        anchor.anchor(bytes32(0));
+    }
+    
+    function test_Emit_RootAnchored() public {
+        bytes32 root = keccak256("test_root");
+        
+        vm.expectEmit(true, false, false, true);
+        emit RootAnchored(root, block.timestamp, block.number, address(this));
+        
+        anchor.anchor(root);
+    }
+    
+    // ============ FUZZ TESTS ============
+    
+    function testFuzz_AnchorAnyNonZeroRoot(bytes32 root) public {
+        vm.assume(root != bytes32(0));
+        
+        anchor.anchor(root);
+        
+        assertGt(anchor.anchors(root), 0);
+        assertEq(anchor.anchors(root), block.timestamp);
+    }
+    
+    function testFuzz_AnchorIdempotent(bytes32 root) public {
+        vm.assume(root != bytes32(0));
+        
+        anchor.anchor(root);
+        uint256 firstTs = anchor.anchors(root);
+        
+        // Should revert on second attempt
+        vm.expectRevert();
+        anchor.anchor(root);
+        
+        assertEq(anchor.anchors(root), firstTs);
+    }
+    
+    // ============ GAS TESTS ============
+    
+    function testGas_Anchor() public {
+        bytes32 root = keccak256("gas_test");
+        
+        uint256 gasBefore = gasleft();
+        anchor.anchor(root);
+        uint256 gasUsed = gasBefore - gasleft();
+        
+        // Assert gas usage is under target
+        assertLt(gasUsed, 50000, "Anchor gas exceeded target");
+    }
+}
+```
+
+### 7.4 Fork Testing Best Practices
+
+```solidity
+// test/fork/VCRegistryFork.t.sol
+contract VCRegistryForkTest is Test {
+    // Pin to specific block for determinism
+    uint256 constant FORK_BLOCK = 12000000;
+    
+    function setUp() public {
+        vm.createSelectFork("base-sepolia", FORK_BLOCK);
+    }
+    
+    function testFork_RealNetworkState() public {
+        // Test against actual deployed contracts
+        address realRegistry = 0x...;
+        VCRegistry registry = VCRegistry(realRegistry);
+        
+        // Assertions against real state
+        assertEq(registry.owner(), EXPECTED_OWNER);
+    }
+}
+```
+
+---
+
+## 8. Deployment Standards
+
+### 8.1 Deployment Script Template
+
+```solidity
+// script/DeployFleming.s.sol
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.30;
+
+import {Script} from "forge-std/Script.sol";
+import {console} from "forge-std/console.sol";
+import {FlemingAnchor} from "../src/FlemingAnchor.sol";
+import {VCRegistry} from "../src/VCRegistry.sol";
+
+contract DeployFleming is Script {
+    error InvalidChain();
+    error DeploymentFailed();
+    
+    struct Deployment {
+        FlemingAnchor anchor;
+        VCRegistry vcRegistry;
+    }
+    
+    function run() external returns (Deployment memory deployment) {
+        // Validate chain
+        if (block.chainid != 84532 && block.chainid != 8453) {
+            revert InvalidChain();
+        }
+        
+        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerKey);
+        
+        console.log("Deploying from:", deployer);
+        console.log("Chain ID:", block.chainid);
+        
+        vm.startBroadcast(deployerKey);
+        
+        // Deploy Phase B: Anchor
+        deployment.anchor = new FlemingAnchor();
+        console.log("FlemingAnchor deployed at:", address(deployment.anchor));
+        
+        // Deploy Phase C.1: VC Registry
+        deployment.vcRegistry = new VCRegistry();
+        console.log("VCRegistry deployed at:", address(deployment.vcRegistry));
+        
+        vm.stopBroadcast();
+        
+        // Post-deployment verification
+        _verifyDeployment(deployment);
+        
+        return deployment;
+    }
+    
+    function _verifyDeployment(Deployment memory d) internal pure {
+        if (address(d.anchor) == address(0) || address(d.vcRegistry) == address(0)) {
+            revert DeploymentFailed();
+        }
+    }
+}
+```
+
+### 8.2 Environment Variables
+
+```bash
+# .env (NEVER COMMIT!)
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+BASE_RPC_URL=https://mainnet.base.org
+PRIVATE_KEY=0x...                    # Testnet only
+BASESCAN_API_KEY=...                 # From basescan.org
+
+# Use cast wallet for mainnet (more secure)
+# cast wallet import deployer --interactive
+# Then use: --account deployer
+```
+
+### 8.3 Deployment Commands
+
+```bash
+# Local testing
+forge script script/DeployFleming.s.sol --rpc-url http://localhost:8545 --broadcast
+
+# Testnet deployment + verification
+forge script script/DeployFleming.s.sol \
+    --rpc-url $BASE_SEPOLIA_RPC_URL \
+    --broadcast \
+    --verify \
+    -vvvv
+
+# Mainnet (use cast wallet!)
+forge script script/DeployFleming.s.sol \
+    --rpc-url $BASE_RPC_URL \
+    --account deployer \
+    --broadcast \
+    --verify
+```
+
+---
+
+## 9. Security Checklist (Pre-Deployment)
+
+### 9.1 Code Review Checklist
+
+- [ ] All functions follow CEI pattern
+- [ ] Custom errors used everywhere (no revert strings)
+- [ ] No unbounded loops or dynamic storage arrays
+- [ ] Access control on all sensitive functions
+- [ ] Events emitted for all state changes
+- [ ] No floating pragmas (`pragma solidity 0.8.30;`)
+- [ ] NatSpec comments on all public/external functions
+
+### 9.2 Testing Checklist
+
+- [ ] 100% line coverage for core logic
+- [ ] Fuzz tests for all user inputs
+- [ ] Revert conditions tested with exact selectors
+- [ ] Gas usage under targets verified
+- [ ] Fork tests against Base Sepolia
+- [ ] Invariant tests for system properties
+
+### 9.3 Tooling Checklist
+
+- [ ] `forge build` compiles without warnings
+- [ ] `forge lint` shows no issues
+- [ ] `slither src/ --filter-paths "lib/"` zero high/medium
+- [ ] `forge test --gas-report` reviewed
+- [ ] `forge snapshot --check` passes
+
+### 9.4 Deployment Checklist
+
+- [ ] Contracts verified on Basescan
+- [ ] Post-deployment sanity checks pass
+- [ ] Ownership transferred to multisig (not EOA)
+- [ ] Emergency pause functionality tested
+- [ ] Gas costs within targets on real network
+
+---
+
+## 10. Contract-Specific Patterns
+
+### 10.1 FlemingAnchor (Merkle Root Storage)
+
+```solidity
+contract FlemingAnchor is Ownable {
+    error ZeroRoot();
+    error AlreadyAnchored(bytes32 root);
+    
+    event RootAnchored(
+        bytes32 indexed root,
+        uint256 timestamp,
+        uint256 blockNumber,
+        address indexed anchorer
+    );
+    
+    mapping(bytes32 => uint256) public anchors;
+    
+    function anchor(bytes32 root) external onlyOwner {
+        if (root == bytes32(0)) revert ZeroRoot();
+        if (anchors[root] != 0) revert AlreadyAnchored(root);
+        
+        anchors[root] = block.timestamp;
+        
+        emit RootAnchored(root, block.timestamp, block.number, msg.sender);
+    }
+    
+    function isAnchored(bytes32 root) external view returns (bool) {
+        return anchors[root] != 0;
+    }
+}
+```
+
+### 10.2 VCRegistry (Revocation Bitmap)
+
+```solidity
+contract VCRegistry is Ownable {
+    using Bitmap for uint256[];
+    
+    error InvalidVCId(uint256 vcId);
+    error AlreadyRevoked(uint256 vcId);
+    
+    event VCIssued(uint256 indexed vcId, bytes32 indexed vcHash, address issuer);
+    event VCRevoked(uint256 indexed vcId, address revoker);
+    
+    uint256 public nextVCId;
+    uint256[] public revocationBitmap;
+    
+    function issue(bytes32 vcHash) external returns (uint256 vcId) {
+        vcId = nextVCId++;
+        emit VCIssued(vcId, vcHash, msg.sender);
+    }
+    
+    function revoke(uint256 vcId) external onlyOwner {
+        if (vcId >= nextVCId) revert InvalidVCId(vcId);
+        if (revocationBitmap.get(vcId)) revert AlreadyRevoked(vcId);
+        
+        revocationBitmap.set(vcId);
+        emit VCRevoked(vcId, msg.sender);
+    }
+    
+    function isRevoked(uint256 vcId) external view returns (bool) {
+        if (vcId >= nextVCId) revert InvalidVCId(vcId);
+        return revocationBitmap.get(vcId);
+    }
+}
+```
+
+### 10.3 ZKVerifier (Groth16 Verification)
+
+```solidity
+interface IZKVerifier {
+    function verifyProof(
+        uint256[2] calldata a,
+        uint256[2][2] calldata b,
+        uint256[2] calldata c,
+        uint256[] calldata publicInputs
+    ) external view returns (bool);
+}
+
+contract ZKVerifier is IZKVerifier, Ownable {
+    error InvalidProof();
+    error VerificationFailed();
+    
+    event ProofVerified(
+        bytes32 indexed proofHash,
+        bool result,
+        uint256[] publicInputs
+    );
+    
+    // Groth16 verification key (constant for circuit)
+    uint256[2] public alpha;
+    uint256[2][2] public beta;
+    uint256[2] public gamma;
+    uint256[2][2] public delta;
+    uint256[][] public ic;
+    
+    function verifyProof(
+        uint256[2] calldata a,
+        uint256[2][2] calldata b,
+        uint256[2] calldata c,
+        uint256[] calldata publicInputs
+    ) external view returns (bool) {
+        // Pairing check implementation
+        // ... verification logic ...
+        
+        bool result = /* verification result */;
+        
+        emit ProofVerified(keccak256(abi.encode(a, b, c)), result, publicInputs);
+        
+        return result;
+    }
+}
+```
+
+---
+
+## 11. Debugging & Analysis
+
+### 11.1 Common Commands
+
+```bash
+# Build & Test
+forge build                              # Compile
+forge build --sizes                      # Check contract sizes
+forge test -vvv                          # Run with traces
+forge test --match-test test_Anchor      # Filter tests
+forge test --gas-report                  # Gas analysis
+forge snapshot                           # Save gas baseline
+forge snapshot --check                   # Compare to baseline
+
+# Debugging
+cast run $TX_HASH --rpc-url $RPC_URL     # Trace transaction
+forge debug script/Deploy.s.sol          # Interactive debugger
+cast 4byte $SELECTOR                     # Decode function selector
+
+# Static Analysis
+forge lint                               # Built-in linting
+slither src/ --filter-paths "lib/"       # Full analysis
+slither src/ --detect reentrancy-eth     # Specific detector
+
+# Deployment
+forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
+forge verify-contract $ADDRESS ContractName --chain base-sepolia
+```
+
+### 11.2 Reading Traces
+
+```
+[PASS] test_AnchorStoresTimestamp() (gas: 45623)
+Traces:
+  [45623] FlemingAnchorTest::test_AnchorStoresTimestamp()
+    ├─ [2350] VM::assume(true) [staticcall]
+    ├─ [24194] FlemingAnchor::anchor(0x1234...)
+    │   ├─ emit RootAnchored(root: 0x1234..., timestamp: 1699123456, blockNumber: 12345, anchorer: FlemingAnchorTest: [0x7FA...])
+    │   └─ ← ()
+    └─ ← ()
+```
+
+---
+
+## 12. CI/CD Integration
+
+```yaml
+# .github/workflows/contracts.yml
+name: Smart Contract CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - uses: foundry-rs/foundry-toolchain@v1
+      
+      - name: Run linter
+        run: |
+          cd contracts
+          forge lint
+      
+      - name: Run tests
+        run: |
+          cd contracts
+          forge test --profile ci -vvv
+      
+      - name: Run Slither
+        uses: crytic/slither-action@v0.3.0
+        with:
+          target: 'contracts/src/'
+          slither-args: '--filter-paths "lib/" --exclude-informational'
+          fail-on: 'high,medium'
+      
+      - name: Check gas snapshots
+        run: |
+          cd contracts
+          forge snapshot --check
+```
+
+---
+
+## 13. Resources & References
+
+- **Foundry Book**: https://book.getfoundry.sh/
+- **Base Documentation**: https://docs.base.org/
+- **OpenZeppelin Contracts**: https://docs.openzeppelin.com/contracts/5.x/
+- **Trail of Bits Security**: https://secure-contracts.com/
+- **Slither Detectors**: https://github.com/crytic/slither/wiki/Detector-Documentation
+- **Solidity Gas Patterns**: https://github.com/PhABC/solidity-gas-patterns
+- **Base Gas Tracker**: https://basegas.info/
+
+---
+
+> **Mantra: Correct. Secure. Gas-efficient. Then deploy.**

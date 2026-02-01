@@ -226,11 +226,18 @@ func (s *service) UpdateEventProtocol(ctx context.Context, event *timeline.Event
 
 // DeleteEventByID implements append-only deletion using protocol types.
 func (s *service) DeleteEventByID(ctx context.Context, id types.ID) error {
+	var owner types.WalletAddress
+	var tombstoneID types.ID
+
 	err := s.repo.Transaction(ctx, func(repo Repository) error {
 		original, err := repo.GetEvent(ctx, id)
 		if err != nil {
 			return fmt.Errorf("find original: %w", err)
 		}
+		if original == nil {
+			return fmt.Errorf("find original: not found")
+		}
+		owner = original.PatientID
 
 		// Create tombstone event
 		tombstone, err := timeline.NewEventBuilder().
@@ -246,6 +253,7 @@ func (s *service) DeleteEventByID(ctx context.Context, id types.ID) error {
 		if err := repo.CreateEvent(ctx, tombstone); err != nil {
 			return fmt.Errorf("create tombstone: %w", err)
 		}
+		tombstoneID = tombstone.ID
 
 		// Create replacement edge
 		edge, err := timeline.NewEdgeBuilder().
@@ -268,7 +276,12 @@ func (s *service) DeleteEventByID(ctx context.Context, id types.ID) error {
 	}
 
 	// Record action
-	_ = s.auditService.Record(ctx, id.String(), protocol.ActionDelete, protocol.ResourceEvent, id.String(), nil)
+	if !owner.IsEmpty() {
+		auditMetadata := common.JSONMap{
+			"tombstoneEventId": tombstoneID.String(),
+		}
+		_ = s.auditService.Record(ctx, owner.String(), protocol.ActionDelete, protocol.ResourceEvent, id.String(), auditMetadata)
+	}
 
 	return nil
 }
@@ -390,9 +403,15 @@ func (s *service) GetRelatedEvents(ctx context.Context, eventID string, maxDepth
 
 // GetGraphData returns the adjacency list of nodes and edges.
 func (s *service) GetGraphData(ctx context.Context, patientID string) (*GraphData, error) {
-	events, edges, err := s.repo.GetGraphData(ctx, patientID)
+	// Normalize address to lowercase for consistent database queries
+	addr, err := types.NewWalletAddress(patientID)
 	if err != nil {
-		return nil, fmt.Errorf("get graph data for %s: %w", patientID, err)
+		return nil, fmt.Errorf("invalid patient ID: %w", err)
+	}
+
+	events, edges, err := s.repo.GetGraphData(ctx, addr.String())
+	if err != nil {
+		return nil, fmt.Errorf("get graph data for %s: %w", addr, err)
 	}
 
 	return &GraphData{
@@ -454,7 +473,15 @@ func (s *service) GetFile(ctx context.Context, fileID string, actor string) (*Ev
 			"fileSize": file.FileSize,
 			"mimeType": file.MimeType,
 		}
-		_ = s.auditService.Record(ctx, actor, protocol.ActionDownload, protocol.ResourceFile, file.ID, auditMetadata)
+		// Chain is owned by the record owner (patient), not the requester.
+		// Record who performed the action separately.
+		if addr, err := types.NewWalletAddress(actor); err == nil {
+			auditMetadata["performedBy"] = addr.String()
+		}
+		eventIDTyped, _ := types.NewID(file.EventID)
+		if event, err := s.repo.GetEvent(ctx, eventIDTyped); err == nil && event != nil {
+			_ = s.auditService.Record(ctx, event.PatientID.String(), protocol.ActionDownload, protocol.ResourceFile, file.ID, auditMetadata)
+		}
 	}
 
 	return file, reader, nil

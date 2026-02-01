@@ -1,12 +1,19 @@
 import { apiClient } from "@/lib/api-client";
+import type { AuditAnchorStatus } from "../types";
 
 export interface MerkleBatch {
 	id: string;
+	actor: string;
 	rootHash: string;
 	startTime: string;
 	endTime: string;
 	entryCount: number;
 	createdAt: string;
+	anchorTxHash?: string;
+	anchorBlockNumber?: number;
+	anchoredAt?: string;
+	anchorStatus?: AuditAnchorStatus | string;
+	anchorError?: string;
 }
 
 interface BuildMerkleResponse {
