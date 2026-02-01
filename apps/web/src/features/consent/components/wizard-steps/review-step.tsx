@@ -21,7 +21,7 @@ export function ReviewStep({ values }: ReviewStepProps): JSX.Element {
 		<div className="space-y-4">
 			<div className="space-y-2">
 				<p className="text-xs uppercase tracking-wide text-muted-foreground">
-					Patient
+					Grantor
 				</p>
 				{values.grantor ? (
 					<AddressDisplay address={values.grantor as `0x${string}`} showCopy />

@@ -20,7 +20,7 @@ import type { ConsentForm } from "./consent-form-types";
 import type { ConsentRequestFormValues } from "./consent-request-wizard-types";
 import { StepIndicator } from "./step-indicator";
 import { DurationStep } from "./wizard-steps/duration-step";
-import { PatientStep } from "./wizard-steps/patient-step";
+import { GrantorStep } from "./wizard-steps/grantor-step";
 import { PermissionsStep } from "./wizard-steps/permissions-step";
 import { ReasonStep } from "./wizard-steps/reason-step";
 import { ReviewStep } from "./wizard-steps/review-step";
@@ -45,7 +45,7 @@ const consentRequestSchema = z.object({
 });
 
 const stepLabels = [
-	"Patient",
+	"Grantor",
 	"Permissions",
 	"Duration",
 	"Reason",
@@ -142,7 +142,7 @@ export function ConsentRequestWizard({
 					Request access
 				</CardTitle>
 				<p className="text-sm text-muted-foreground">
-					Guide patients through a clear, secure consent request.
+					Guide grantors through a clear, secure consent request.
 				</p>
 				<StepIndicator steps={stepLabels} currentStep={currentStep} />
 			</CardHeader>
@@ -161,7 +161,7 @@ export function ConsentRequestWizard({
 						}`}
 					</div>
 
-					{currentStep === 0 && <PatientStep form={form as ConsentForm} />}
+					{currentStep === 0 && <GrantorStep form={form as ConsentForm} />}
 					{currentStep === 1 && <PermissionsStep form={form as ConsentForm} />}
 					{currentStep === 2 && <DurationStep form={form as ConsentForm} />}
 					{currentStep === 3 && <ReasonStep form={form as ConsentForm} />}

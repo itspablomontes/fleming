@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 
 import type { ConsentForm } from "../consent-form-types";
 
-interface PatientStepProps {
+interface GrantorStepProps {
 	form: ConsentForm;
 }
 
-export function PatientStep({ form }: PatientStepProps): JSX.Element {
+export function GrantorStep({ form }: GrantorStepProps): JSX.Element {
 	return (
 		<form.Field
 			name="grantor"
@@ -25,7 +25,7 @@ export function PatientStep({ form }: PatientStepProps): JSX.Element {
 			{(field) => (
 				<div className="space-y-3">
 					<div className="space-y-2">
-						<Label htmlFor={field.name}>Patient wallet address</Label>
+						<Label htmlFor={field.name}>Grantor wallet address</Label>
 						<Input
 							id={field.name}
 							value={field.state.value}
@@ -57,7 +57,7 @@ export function PatientStep({ form }: PatientStepProps): JSX.Element {
 							"rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground",
 						)}
 					>
-						Use the patient’s wallet address to request access. This address is
+						Use the grantor’s wallet address to request access. This address is
 						never stored in plaintext on the server.
 					</div>
 				</div>
