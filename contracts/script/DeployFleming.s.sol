@@ -216,18 +216,20 @@ contract DeployFleming is Script {
             address(result.vcRegistry)
         );
 
-        // Path where docker-compose expects it (inside container)
-        // We use a relative path that works with the docker volume mount
-        // container working_dir is /workspace/contracts
-        // volume maps ./:/workspace/contracts
-        // OR better: write to a specific path that the docker-compose mount handles.
-        // Actually, compose mount is: ./:/workspace on `contracts-deploy` service
-        // So writing to "deployments.json" puts it in /workspace/contracts/deployments.json
-        // But we want to share it. Let's write to "../deployments.json" to put it in root of workspace?
-        // Or simply "deployments.json" and adjust the compose mount.
-        // Let's stick to "deployments.json" in root of execution (contracts dir).
-        vm.writeJson(output, "deployments.json");
-        console.log("Wrote deployments to deployments.json");
+        // Local dev expects a stable `deployments.json` path (docker compose copies it to a shared volume
+        // so the backend can auto-wire the anchor contract address).
+        //
+        // For non-local networks, write explicit per-network artifacts so they can be committed as a
+        // human/audit source of truth without getting overwritten by local runs.
+        string memory fileName = "deployments.json";
+        if (chainId == BASE_SEPOLIA) {
+            fileName = "deployments.base_sepolia.json";
+        } else if (chainId == BASE_MAINNET) {
+            fileName = "deployments.base.json";
+        }
+
+        vm.writeJson(output, fileName);
+        console.log("Wrote deployments to:", fileName);
     }
 
     /// @notice Get human-readable network name

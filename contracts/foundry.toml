@@ -12,6 +12,13 @@ remappings = [
     "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.2.0/",
     "forge-std/=dependencies/forge-std-1.9.7/src/",
 ]
+# Narrow filesystem permissions (used by forge scripts for broadcast + deployment JSON exports).
+fs_permissions = [
+    { access = "read-write", path = "./broadcast" },
+    { access = "read-write", path = "./deployments.json" },
+    { access = "read-write", path = "./deployments.base.json" },
+    { access = "read-write", path = "./deployments.base_sepolia.json" },
+]
 
 [profile.default.fmt]
 line_length = 100
