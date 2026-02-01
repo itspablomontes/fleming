@@ -178,3 +178,6 @@ tmp/
 temp/
 .gocache/
 .pnpm-store/
+
+# Foundry Soldeer dependencies
+contracts/dependencies/
