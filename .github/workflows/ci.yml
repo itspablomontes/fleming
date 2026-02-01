@@ -22,6 +22,12 @@ jobs:
     outputs:
       contracts: ${{ steps.filter.outputs.contracts }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # paths-filter relies on git history to compute changes reliably (merge-base on PRs).
+          fetch-depth: 0
+
       - name: Detect contract-related changes
         uses: dorny/paths-filter@v3
         id: filter
