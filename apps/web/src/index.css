@@ -79,11 +79,6 @@
 }
 
 /*
- * DARK MODE (Primary - DeSci Aesthetic)
- * =====================================
- * DeSci Aesthetic: Deep navy base with cyan accents
- */
-/*
  * LIGHT MODE (Default — Standard shadcn Pattern)
  * ============================================
  */
@@ -231,11 +226,14 @@
   --event-insurance-text: oklch(0.35 0.12 165);
   --event-insurance-glow: oklch(0.65 0.15 165 / 15%);
 
-  --event-other: oklch(0.94 0.01 260);
   --event-other-bg: oklch(0.94 0.01 260);
   --event-other-border: oklch(0.60 0.02 260);
   --event-other-text: oklch(0.35 0.02 260);
   --event-other-glow: oklch(0.60 0.02 260 / 15%);
+
+  /* ===== GLASSMORPHISM VARIABLES ===== */
+  --glass-bg: oklch(0.98 0.005 260 / 80%);
+  --glass-border: oklch(0.88 0.01 260 / 60%);
 }
 
 /*
@@ -277,9 +275,13 @@
   --muted-foreground: oklch(0.60 0.02 260);
   /* 60% brightness for muted text */
 
-  /* Accent - Subtle cyan for hovers/highlights (matches primary) */
-  --accent: oklch(0.22 0.04 190);
-  --accent-foreground: oklch(0.90 0.01 260);
+  /* Accent - High contrast cyan for dark mode readability */
+  --accent: oklch(0.70 0.15 190);
+  /* Brighter cyan for dark mode */
+  --accent-foreground: oklch(0.12 0.02 260);
+  
+  /* Gradient helper for extreme contrast */
+  --gradient-accent: oklch(0.85 0.12 195);
 
   /* Destructive - Error/Revoked states */
   --destructive: oklch(0.65 0.22 25);
@@ -405,6 +407,10 @@
   --event-other-border: oklch(0.65 0.02 260);
   --event-other-text: oklch(0.94 0.01 260);
   --event-other-glow: oklch(0.65 0.02 260 / 30%);
+
+  /* ===== GLASSMORPHISM VARIABLES ===== */
+  --glass-bg: oklch(0.14 0.02 260 / 70%);
+  --glass-border: oklch(0.35 0.02 260 / 40%);
 }
 
 @layer base {
@@ -476,4 +482,119 @@
 /* Mobile safe-area padding helpers */
 .safe-area-bottom {
   padding-bottom: calc(env(safe-area-inset-bottom) + 1.5rem);
+}
+
+/*
+ * GLASSMORPHISM UTILITIES
+ * =======================
+ * Modern glass effect for overlays and navigation
+ */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+}
+
+/*
+ * GRADIENT TEXT UTILITY
+ * =====================
+ * Gradient text effect using primary-to-accent colors
+ */
+.gradient-text {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/*
+ * EXPRESSIVE ANIMATIONS
+ * =====================
+ * Custom easing and animation utilities
+ */
+.ease-out-expo {
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Pulse with custom timing for ambient effects */
+@keyframes ambient-pulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+.animate-ambient-pulse {
+  animation: ambient-pulse 4s ease-in-out infinite;
+}
+
+/* Floating animation for decorative elements */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Glow pulse for interactive elements */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px -5px var(--glow-primary);
+  }
+  50% {
+    box-shadow: 0 0 40px -5px var(--glow-primary);
+  }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Scroll indicator animation */
+@keyframes scroll-hint {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(8px);
+    opacity: 1;
+  }
+}
+
+.animate-scroll-hint {
+  animation: scroll-hint 2s ease-in-out infinite;
+}
+
+/*
+ * LANDING PAGE SECTION UTILITIES
+ * ==============================
+ */
+.section-gradient-overlay {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    oklch(0.12 0.02 260 / 50%) 50%,
+    transparent 100%
+  );
+}
+
+.dark .section-gradient-overlay {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    oklch(0.08 0.02 260 / 50%) 50%,
+    transparent 100%
+  );
 }

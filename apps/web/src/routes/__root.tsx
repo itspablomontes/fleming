@@ -13,7 +13,15 @@ function RootComponent() {
 	useEffect(() => {
 		const stored = localStorage.getItem("fleming-theme");
 		const theme = stored === "light" ? "light" : "dark";
-		document.documentElement.classList.add(theme);
+		const root = document.documentElement;
+		
+		if (theme === "dark") {
+			root.classList.add("dark");
+			root.classList.remove("light");
+		} else {
+			root.classList.add("light");
+			root.classList.remove("dark");
+		}
 	}, []);
 
 	return (
