@@ -20,20 +20,10 @@ contract VCRegistryTest is Test {
     bytes32 constant ZERO_HASH = bytes32(0);
 
     event VCIssued(
-        uint256 indexed vcId,
-        bytes32 indexed vcHash,
-        address indexed issuer,
-        uint256 timestamp
+        uint256 indexed vcId, bytes32 indexed vcHash, address indexed issuer, uint256 timestamp
     );
-    event VCRevoked(
-        uint256 indexed vcId,
-        address indexed revoker,
-        uint256 timestamp
-    );
-    event IssuerUpdated(
-        address indexed previousIssuer,
-        address indexed newIssuer
-    );
+    event VCRevoked(uint256 indexed vcId, address indexed revoker, uint256 timestamp);
+    event IssuerUpdated(address indexed previousIssuer, address indexed newIssuer);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -77,12 +67,7 @@ contract VCRegistryTest is Test {
 
     function test_UnauthorizedCannotIssue() public {
         vm.prank(unauthorized);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                VCRegistry.Unauthorized.selector,
-                unauthorized
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(VCRegistry.Unauthorized.selector, unauthorized));
         registry.issue(HASH_1);
     }
 
@@ -123,17 +108,13 @@ contract VCRegistryTest is Test {
 
     function test_CannotRevokeInvalidId() public {
         vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(VCRegistry.InvalidVCId.selector, 999)
-        );
+        vm.expectRevert(abi.encodeWithSelector(VCRegistry.InvalidVCId.selector, 999));
         registry.revoke(999);
     }
 
     function test_CannotRevokeZeroId() public {
         vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(VCRegistry.InvalidVCId.selector, 0)
-        );
+        vm.expectRevert(abi.encodeWithSelector(VCRegistry.InvalidVCId.selector, 0));
         registry.revoke(0);
     }
 
@@ -144,18 +125,14 @@ contract VCRegistryTest is Test {
         vm.startPrank(owner);
         registry.revoke(vcId);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(VCRegistry.AlreadyRevoked.selector, vcId)
-        );
+        vm.expectRevert(abi.encodeWithSelector(VCRegistry.AlreadyRevoked.selector, vcId));
         registry.revoke(vcId);
         vm.stopPrank();
     }
 
     function test_CannotRevokeUnissued() public {
         vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(VCRegistry.InvalidVCId.selector, 1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(VCRegistry.InvalidVCId.selector, 1));
         registry.revoke(1);
     }
 
@@ -187,10 +164,7 @@ contract VCRegistryTest is Test {
         vm.prank(issuer);
         uint256 vcId = registry.issue(HASH_1);
 
-        (bool valid, bool revoked, uint256 issuedAt) = registry.verifyVC(
-            vcId,
-            HASH_1
-        );
+        (bool valid, bool revoked, uint256 issuedAt) = registry.verifyVC(vcId, HASH_1);
 
         assertTrue(valid);
         assertFalse(revoked);
@@ -201,10 +175,7 @@ contract VCRegistryTest is Test {
         vm.prank(issuer);
         uint256 vcId = registry.issue(HASH_1);
 
-        (bool valid, bool revoked, uint256 issuedAt) = registry.verifyVC(
-            vcId,
-            HASH_2
-        );
+        (bool valid, bool revoked, uint256 issuedAt) = registry.verifyVC(vcId, HASH_2);
 
         assertFalse(valid);
         assertFalse(revoked);
@@ -218,17 +189,14 @@ contract VCRegistryTest is Test {
         vm.prank(owner);
         registry.revoke(vcId);
 
-        (bool valid, bool revoked, ) = registry.verifyVC(vcId, HASH_1);
+        (bool valid, bool revoked,) = registry.verifyVC(vcId, HASH_1);
 
         assertFalse(valid);
         assertTrue(revoked);
     }
 
     function test_VerifyVCInvalidId() public view {
-        (bool valid, bool revoked, uint256 issuedAt) = registry.verifyVC(
-            999,
-            HASH_1
-        );
+        (bool valid, bool revoked, uint256 issuedAt) = registry.verifyVC(999, HASH_1);
 
         assertFalse(valid);
         assertFalse(revoked);
@@ -377,10 +345,7 @@ contract VCRegistryTest is Test {
         assertEq(registry.vcHashes(vcId), hash);
     }
 
-    function testFuzz_RevokeAndCheck(
-        uint8 numIssues,
-        uint8 revokeIndex
-    ) public {
+    function testFuzz_RevokeAndCheck(uint8 numIssues, uint8 revokeIndex) public {
         vm.assume(numIssues > 0 && numIssues <= 100);
         vm.assume(revokeIndex < numIssues);
 
@@ -463,10 +428,6 @@ contract VCRegistryTest is Test {
 
         console.log("Gas used for batchIssue(10):", gasUsed);
         console.log("Gas per VC:", gasUsed / 10);
-        assertLt(
-            gasUsed,
-            500000,
-            "Batch issue of 10 should use less than 500k gas"
-        );
+        assertLt(gasUsed, 500000, "Batch issue of 10 should use less than 500k gas");
     }
 }

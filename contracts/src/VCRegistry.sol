@@ -38,29 +38,19 @@ contract VCRegistry is Ownable {
     /// @param issuer Address that issued the VC
     /// @param timestamp Block timestamp of issuance
     event VCIssued(
-        uint256 indexed vcId,
-        bytes32 indexed vcHash,
-        address indexed issuer,
-        uint256 timestamp
+        uint256 indexed vcId, bytes32 indexed vcHash, address indexed issuer, uint256 timestamp
     );
 
     /// @notice Emitted when a VC is revoked
     /// @param vcId The VC ID that was revoked
     /// @param revoker Address that performed the revocation
     /// @param timestamp Block timestamp of revocation
-    event VCRevoked(
-        uint256 indexed vcId,
-        address indexed revoker,
-        uint256 timestamp
-    );
+    event VCRevoked(uint256 indexed vcId, address indexed revoker, uint256 timestamp);
 
     /// @notice Emitted when the issuer role is updated
     /// @param previousIssuer The previous authorized issuer
     /// @param newIssuer The new authorized issuer
-    event IssuerUpdated(
-        address indexed previousIssuer,
-        address indexed newIssuer
-    );
+    event IssuerUpdated(address indexed previousIssuer, address indexed newIssuer);
 
     // ─── Storage ───────────────────────────────────────────────────────────────
 
@@ -137,9 +127,11 @@ contract VCRegistry is Ownable {
     /// @notice Batch issue multiple VCs in a single transaction
     /// @param hashes Array of VC content hashes
     /// @return vcIds Array of assigned VC IDs
-    function batchIssue(
-        bytes32[] calldata hashes
-    ) external onlyIssuer returns (uint256[] memory vcIds) {
+    function batchIssue(bytes32[] calldata hashes)
+        external
+        onlyIssuer
+        returns (uint256[] memory vcIds)
+    {
         uint256 length = hashes.length;
         if (length == 0) return new uint256[](0);
 
@@ -214,10 +206,11 @@ contract VCRegistry is Ownable {
     /// @return valid True if VC exists, hash matches, and not revoked
     /// @return revoked True if the VC has been revoked
     /// @return issuedAt The timestamp when the VC was issued (0 if not found)
-    function verifyVC(
-        uint256 vcId,
-        bytes32 expectedHash
-    ) external view returns (bool valid, bool revoked, uint256 issuedAt) {
+    function verifyVC(uint256 vcId, bytes32 expectedHash)
+        external
+        view
+        returns (bool valid, bool revoked, uint256 issuedAt)
+    {
         if (vcId == 0 || vcId >= nextVCId) {
             return (false, false, 0);
         }
@@ -237,9 +230,7 @@ contract VCRegistry is Ownable {
     /// @param upToVCId Count revocations up to and including this ID
     /// @return count Number of revoked VCs in the range
     /// @dev Gas intensive for large ranges - prefer off-chain indexing
-    function getRevocationCount(
-        uint256 upToVCId
-    ) external view returns (uint256 count) {
+    function getRevocationCount(uint256 upToVCId) external view returns (uint256 count) {
         if (upToVCId == 0 || upToVCId >= nextVCId) return 0;
         return revocationBitmap.countSetBits(upToVCId);
     }

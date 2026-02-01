@@ -20,15 +20,9 @@ contract FlemingAnchorTest is Test {
     bytes32 constant ZERO_ROOT = bytes32(0);
 
     event RootAnchored(
-        bytes32 indexed root,
-        uint256 timestamp,
-        uint256 blockNumber,
-        address indexed anchorer
+        bytes32 indexed root, uint256 timestamp, uint256 blockNumber, address indexed anchorer
     );
-    event AnchorerUpdated(
-        address indexed previousAnchorer,
-        address indexed newAnchorer
-    );
+    event AnchorerUpdated(address indexed previousAnchorer, address indexed newAnchorer);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -71,12 +65,7 @@ contract FlemingAnchorTest is Test {
 
     function test_UnauthorizedCannotAnchor() public {
         vm.prank(unauthorized);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                FlemingAnchor.Unauthorized.selector,
-                unauthorized
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(FlemingAnchor.Unauthorized.selector, unauthorized));
         anchor.anchor(ROOT_1);
     }
 
@@ -135,12 +124,7 @@ contract FlemingAnchorTest is Test {
         anchor.anchor(ROOT_1);
 
         vm.prank(anchorer);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                FlemingAnchor.AlreadyAnchored.selector,
-                ROOT_1
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(FlemingAnchor.AlreadyAnchored.selector, ROOT_1));
         anchor.anchor(ROOT_1);
     }
 
@@ -247,12 +231,7 @@ contract FlemingAnchorTest is Test {
 
         // Anchorer can no longer anchor
         vm.prank(anchorer);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                FlemingAnchor.Unauthorized.selector,
-                anchorer
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(FlemingAnchor.Unauthorized.selector, anchorer));
         anchor.anchor(ROOT_1);
 
         // But owner still can
@@ -325,11 +304,7 @@ contract FlemingAnchorTest is Test {
 
         console.log("Gas used for batchAnchor(10):", gasUsed);
         console.log("Gas per root:", gasUsed / 10);
-        assertLt(
-            gasUsed,
-            400000,
-            "Batch anchor of 10 should use less than 400k gas"
-        );
+        assertLt(gasUsed, 400000, "Batch anchor of 10 should use less than 400k gas");
     }
 
     function testGas_Verify() public {

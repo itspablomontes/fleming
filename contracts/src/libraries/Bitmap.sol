@@ -40,10 +40,7 @@ library Bitmap {
     /// @param bitmap The storage array to read from
     /// @param index The bit index to read
     /// @return True if the bit is set, false otherwise
-    function get(
-        uint256[] storage bitmap,
-        uint256 index
-    ) internal view returns (bool) {
+    function get(uint256[] storage bitmap, uint256 index) internal view returns (bool) {
         if (index > MAX_INDEX) return false;
 
         uint256 slot = index >> 8;
@@ -80,10 +77,11 @@ library Bitmap {
     /// @param upToIndex Count bits up to and including this index
     /// @return count The number of set bits
     /// @dev Gas intensive for large bitmaps - use off-chain indexing instead
-    function countSetBits(
-        uint256[] storage bitmap,
-        uint256 upToIndex
-    ) internal view returns (uint256 count) {
+    function countSetBits(uint256[] storage bitmap, uint256 upToIndex)
+        internal
+        view
+        returns (uint256 count)
+    {
         if (bitmap.length == 0) return 0;
 
         uint256 lastSlot = upToIndex >> 8;
@@ -116,46 +114,22 @@ library Bitmap {
     /// @return The number of 1 bits
     /// @dev Uses the SWAR (SIMD Within A Register) algorithm
     function _popcount(uint256 x) internal pure returns (uint256) {
-        x =
-            (x &
-                0x5555555555555555555555555555555555555555555555555555555555555555) +
-            ((x >> 1) &
-                0x5555555555555555555555555555555555555555555555555555555555555555);
-        x =
-            (x &
-                0x3333333333333333333333333333333333333333333333333333333333333333) +
-            ((x >> 2) &
-                0x3333333333333333333333333333333333333333333333333333333333333333);
-        x =
-            (x &
-                0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F) +
-            ((x >> 4) &
-                0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F);
-        x =
-            (x &
-                0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) +
-            ((x >> 8) &
-                0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF);
-        x =
-            (x &
-                0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) +
-            ((x >> 16) &
-                0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF);
-        x =
-            (x &
-                0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) +
-            ((x >> 32) &
-                0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF);
-        x =
-            (x &
-                0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) +
-            ((x >> 64) &
-                0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF);
-        x =
-            (x &
-                0x00000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) +
-            ((x >> 128) &
-                0x00000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
+        x = (x & 0x5555555555555555555555555555555555555555555555555555555555555555)
+            + ((x >> 1) & 0x5555555555555555555555555555555555555555555555555555555555555555);
+        x = (x & 0x3333333333333333333333333333333333333333333333333333333333333333)
+            + ((x >> 2) & 0x3333333333333333333333333333333333333333333333333333333333333333);
+        x = (x & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F)
+            + ((x >> 4) & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F);
+        x = (x & 0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF)
+            + ((x >> 8) & 0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF);
+        x = (x & 0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF)
+            + ((x >> 16) & 0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF);
+        x = (x & 0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF)
+            + ((x >> 32) & 0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF);
+        x = (x & 0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF)
+            + ((x >> 64) & 0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF);
+        x = (x & 0x00000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+            + ((x >> 128) & 0x00000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
         return x;
     }
 }

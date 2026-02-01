@@ -19,11 +19,7 @@ contract DeployFleming is Script {
 
     // ─── Events ────────────────────────────────────────────────────────────────
 
-    event DeploymentComplete(
-        address indexed anchor,
-        address indexed vcRegistry,
-        uint256 chainId
-    );
+    event DeploymentComplete(address indexed anchor, address indexed vcRegistry, uint256 chainId);
 
     // ─── Structs ───────────────────────────────────────────────────────────────
 
@@ -66,11 +62,7 @@ contract DeployFleming is Script {
         // Log results
         _logDeployment(result);
 
-        emit DeploymentComplete(
-            address(result.anchor),
-            address(result.vcRegistry),
-            chainId
-        );
+        emit DeploymentComplete(address(result.anchor), address(result.vcRegistry), chainId);
 
         // Write to JSON file (Local Dev Automation)
         _writeDeploymentJSON(result);
@@ -95,11 +87,7 @@ contract DeployFleming is Script {
         console.log("");
 
         // Validate chain
-        if (
-            chainId != BASE_SEPOLIA &&
-            chainId != BASE_MAINNET &&
-            chainId != ANVIL_LOCAL
-        ) {
+        if (chainId != BASE_SEPOLIA && chainId != BASE_MAINNET && chainId != ANVIL_LOCAL) {
             revert InvalidChain(chainId);
         }
 
@@ -107,29 +95,19 @@ contract DeployFleming is Script {
     }
 
     /// @notice Load deployment configuration from environment
-    function _loadConfig()
-        internal
-        view
-        returns (DeploymentConfig memory config)
-    {
+    function _loadConfig() internal view returns (DeploymentConfig memory config) {
         // Try to load from env, fallback to deployer address
         try vm.envAddress("ANCHORER_ADDRESS") returns (address addr) {
             config.anchorer = addr;
         } catch {
             config.anchorer = deployer;
-            console.log(
-                "ANCHORER_ADDRESS not set, using deployer:",
-                config.anchorer
-            );
+            console.log("ANCHORER_ADDRESS not set, using deployer:", config.anchorer);
         }
         try vm.envAddress("ISSUER_ADDRESS") returns (address addr) {
             config.issuer = addr;
         } catch {
             config.issuer = deployer;
-            console.log(
-                "ISSUER_ADDRESS not set, using deployer:",
-                config.issuer
-            );
+            console.log("ISSUER_ADDRESS not set, using deployer:", config.issuer);
         }
         // Validate addresses
         if (config.anchorer == address(0)) revert ZeroAddress("anchorer");
@@ -139,9 +117,10 @@ contract DeployFleming is Script {
     }
 
     /// @notice Deploy all contracts
-    function _deploy(
-        DeploymentConfig memory config
-    ) internal returns (DeploymentResult memory result) {
+    function _deploy(DeploymentConfig memory config)
+        internal
+        returns (DeploymentResult memory result)
+    {
         console.log("--- Deployment Phase ---");
 
         // 1. Deploy FlemingAnchor (Phase B)
@@ -187,20 +166,15 @@ contract DeployFleming is Script {
         console.log("");
         console.log("Add to your .env:");
         console.log("ANCHOR_CONTRACT_ADDRESS=%s", address(result.anchor));
-        console.log(
-            "VCREGISTRY_CONTRACT_ADDRESS=%s",
-            address(result.vcRegistry)
-        );
+        console.log("VCREGISTRY_CONTRACT_ADDRESS=%s", address(result.vcRegistry));
 
         console.log("");
         console.log("Verify contracts:");
         console.log(
-            "forge verify-contract %s FlemingAnchor --chain base-sepolia",
-            address(result.anchor)
+            "forge verify-contract %s FlemingAnchor --chain base-sepolia", address(result.anchor)
         );
         console.log(
-            "forge verify-contract %s VCRegistry --chain base-sepolia",
-            address(result.vcRegistry)
+            "forge verify-contract %s VCRegistry --chain base-sepolia", address(result.vcRegistry)
         );
 
         console.log("");
@@ -210,11 +184,7 @@ contract DeployFleming is Script {
     function _writeDeploymentJSON(DeploymentResult memory result) internal {
         string memory json = "deployment_export";
         vm.serializeAddress(json, "anchor", address(result.anchor));
-        string memory output = vm.serializeAddress(
-            json,
-            "vcRegistry",
-            address(result.vcRegistry)
-        );
+        string memory output = vm.serializeAddress(json, "vcRegistry", address(result.vcRegistry));
 
         // Local dev expects a stable `deployments.json` path (docker compose copies it to a shared volume
         // so the backend can auto-wire the anchor contract address).

@@ -29,19 +29,13 @@ contract FlemingAnchor is Ownable {
     /// @param blockNumber The block number at anchoring time
     /// @param anchorer The address that performed the anchoring
     event RootAnchored(
-        bytes32 indexed root,
-        uint256 timestamp,
-        uint256 blockNumber,
-        address indexed anchorer
+        bytes32 indexed root, uint256 timestamp, uint256 blockNumber, address indexed anchorer
     );
 
     /// @notice Emitted when the anchorer address is changed
     /// @param previousAnchorer The previous allowed anchorer
     /// @param newAnchorer The new allowed anchorer
-    event AnchorerUpdated(
-        address indexed previousAnchorer,
-        address indexed newAnchorer
-    );
+    event AnchorerUpdated(address indexed previousAnchorer, address indexed newAnchorer);
 
     // ─── Storage ───────────────────────────────────────────────────────────────
 
@@ -141,9 +135,7 @@ contract FlemingAnchor is Ownable {
     /// @param root The Merkle root to verify
     /// @return timestamp The anchor timestamp (0 if not anchored)
     /// @custom:gas ~2,400 gas (cold) / ~100 gas (warm)
-    function getAnchorTimestamp(
-        bytes32 root
-    ) external view returns (uint256 timestamp) {
+    function getAnchorTimestamp(bytes32 root) external view returns (uint256 timestamp) {
         return anchors[root];
     }
 
@@ -193,11 +185,7 @@ contract FlemingAnchor is Ownable {
     /// @notice Get contract metadata for verification
     /// @return version Contract version string
     /// @return chainId Current chain ID
-    function getContractInfo()
-        external
-        view
-        returns (string memory version, uint256 chainId)
-    {
+    function getContractInfo() external view returns (string memory version, uint256 chainId) {
         return ("1.0.0", block.chainid);
     }
 }
