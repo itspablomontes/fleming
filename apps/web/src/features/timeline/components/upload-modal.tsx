@@ -19,21 +19,29 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useVault } from "@/features/auth/contexts/vault-context";
-import { encryptFile, wrapKey } from "@/lib/crypto/encryption";
-import { generateDEK } from "@/lib/crypto/keys";
 import { useEditStore } from "@/features/timeline/stores/edit-store";
 import { useUploadStore } from "@/features/timeline/stores/upload-store";
+import { encryptFile, wrapKey } from "@/lib/crypto/encryption";
+import { generateDEK } from "@/lib/crypto/keys";
 import {
 	addEvent,
 	completeMultipartUpload,
 	correctEvent,
+	linkEvents,
 	startMultipartUpload,
 	uploadMultipartPart,
 } from "../api";
-import { EVENT_TYPE_LABELS, TimelineEventType as EventTypes } from "../types";
+import {
+	EVENT_TYPE_LABELS,
+	TimelineEventType as EventTypes,
+	RELATIONSHIP_LABELS,
+	RelationshipType,
+	type TimelineEvent,
+} from "../types";
 
 interface UploadModalProps {
 	isOpen: boolean;
+	existingEvents?: TimelineEvent[];
 	onClose: () => void;
 	onSuccess?: () => void;
 }
@@ -52,6 +60,7 @@ export function UploadModal({
 	isOpen,
 	onClose,
 	onSuccess,
+	existingEvents,
 }: UploadModalProps) {
 	const { isUnlocked, masterKey } = useVault();
 	const editEvent = useEditStore((state) => state.editEvent);
@@ -68,16 +77,24 @@ export function UploadModal({
 	const reset = useUploadStore((state) => state.reset);
 	const [showUnlockDialog, setShowUnlockDialog] = useState(false);
 
+	const [isEditing, setIsEditing] = useState(false);
 	const [eventType, setEventType] = useState<EventTypes>(EventTypes.VISIT_NOTE);
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [provider, setProvider] = useState("");
 	const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-	const [metadata, setMetadata] = useState<{ key: string; value: string }[]>(
-		[],
-	);
+	const [metadata, setMetadata] = useState<
+		{ id: string; key: string; value: string }[]
+	>([]);
+	const [relationships, setRelationships] = useState<
+		{ id: string; targetEventId: string; type: RelationshipType }[]
+	>([]);
+
 	useEffect(() => {
+		if (!isOpen) return;
+
 		if (editEvent) {
+			setIsEditing(true);
 			setEventType(editEvent.type);
 			setTitle(editEvent.title || "");
 			setDescription(editEvent.description || "");
@@ -87,6 +104,7 @@ export function UploadModal({
 			if (editEvent.metadata) {
 				setMetadata(
 					Object.entries(editEvent.metadata).map(([key, value]) => ({
+						id: crypto.randomUUID(),
 						key,
 						value: String(value),
 					})),
@@ -95,6 +113,7 @@ export function UploadModal({
 				setMetadata([]);
 			}
 		} else {
+			setIsEditing(false);
 			setEventType(EventTypes.VISIT_NOTE);
 			setTitle("");
 			setDescription("");
@@ -102,8 +121,9 @@ export function UploadModal({
 			setDate(new Date().toISOString().split("T")[0]);
 			setMetadata([]);
 		}
+		setRelationships([]); // Reset relationships on open
 		setError(null);
-	}, [editEvent, setError]);
+	}, [editEvent, setError, isOpen]);
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files?.[0]) {
@@ -130,7 +150,7 @@ export function UploadModal({
 			return;
 		}
 
-		if (!editEvent && !file) {
+		if (!isEditing && !file) {
 			setError("Please select a file to upload.");
 			return;
 		}
@@ -152,6 +172,9 @@ export function UploadModal({
 				}
 			}
 
+			// Force time to Noon UTC to prevent timezone shifts
+			const isoDate = new Date(`${date}T12:00:00`).toISOString();
+
 			let payloadFile: File | Blob | undefined = file || undefined;
 			let isEncrypted = false;
 			let wrappedKeyHex: string | undefined;
@@ -170,14 +193,19 @@ export function UploadModal({
 
 				if (shouldUseMultipart) {
 					setStatus("Preparing multipart upload...");
-					const eventResponse = editEvent
+					
+					if (isEditing && !editEvent) {
+						throw new Error("Missing event data for correction.");
+					}
+
+					const eventResponse = isEditing && editEvent
 						? await correctEvent({
 								id: editEvent.id,
 								eventType,
 								title,
 								description,
 								provider,
-								date: new Date(date).toISOString(),
+								date: isoDate,
 								metadata: metadataObj,
 								isEncrypted,
 						  })
@@ -186,7 +214,7 @@ export function UploadModal({
 								title,
 								description,
 								provider,
-								date: new Date(date).toISOString(),
+								date: isoDate,
 								metadata: metadataObj,
 								isEncrypted,
 						  });
@@ -194,6 +222,20 @@ export function UploadModal({
 					const createdEvent = eventResponse.event;
 					if (!createdEvent) {
 						throw new Error("Failed to create event before multipart upload.");
+					}
+
+					// Process Relationships
+					if (relationships.length > 0) {
+						setStatus("Linking events...");
+						for (const rel of relationships) {
+							if (rel.targetEventId) {
+								await linkEvents({
+									fromEventId: createdEvent.id,
+									toEventId: rel.targetEventId,
+									relationshipType: rel.type,
+								});
+							}
+						}
 					}
 
 					const { uploadId, objectName } = await startMultipartUpload({
@@ -277,33 +319,51 @@ export function UploadModal({
 			}
 
 			setStatus("Uploading to vault...");
+			let targetEventId = "";
 
-			if (editEvent) {
-				await correctEvent({
+			if (isEditing && editEvent) {
+				const response = await correctEvent({
 					id: editEvent.id,
 					eventType,
 					title,
 					description,
 					provider,
-					date: new Date(date).toISOString(),
+					date: isoDate,
 					metadata: metadataObj,
 					file: payloadFile,
 					isEncrypted,
 					wrappedKey: wrappedKeyHex,
 				});
+				targetEventId = response.event?.id || editEvent.id;
 			} else {
-				await addEvent({
+				const response = await addEvent({
 					file: payloadFile as File | Blob,
 					eventType,
 					title,
 					description,
 					provider,
-					date: new Date(date).toISOString(),
+					date: isoDate,
 					metadata: metadataObj,
 					isEncrypted,
 					wrappedKey: wrappedKeyHex,
 				});
+				targetEventId = response.event?.id || "";
 			}
+
+			// Process Relationships
+			if (relationships.length > 0 && targetEventId) {
+				setStatus("Linking events...");
+				for (const rel of relationships) {
+					if (rel.targetEventId) {
+						await linkEvents({
+							fromEventId: targetEventId,
+							toEventId: rel.targetEventId,
+							relationshipType: rel.type,
+						});
+					}
+				}
+			}
+
 			onSuccess?.();
 			onClose();
 			cancelEdit();
@@ -318,7 +378,7 @@ export function UploadModal({
 		} catch (err) {
 			console.error("Operation failed:", err);
 			setError(
-				`Failed to ${editEvent ? "correct" : "upload"} document. Please try again.`,
+				`Failed to ${isEditing ? "correct" : "upload"} document. Please try again.`,
 			);
 		} finally {
 			finishUpload();
@@ -337,7 +397,7 @@ export function UploadModal({
 				<DialogContent className="sm:max-w-[500px] bg-white dark:bg-gray-950 border-cyan-200 dark:border-cyan-900 max-h-[90vh] overflow-hidden flex flex-col">
 					<DialogHeader>
 						<DialogTitle className="text-2xl font-bold text-cyan-900 dark:text-cyan-50 flex items-center gap-2">
-							{editEvent ? "Correct Medical Entry" : "Upload Medical Document"}
+							{isEditing ? "Correct Medical Entry" : "Upload Medical Document"}
 							{isUnlocked ? (
 								<Lock className="h-5 w-5 text-emerald-500" />
 							) : (
@@ -353,7 +413,9 @@ export function UploadModal({
 									htmlFor="file"
 									className="text-cyan-900 dark:text-cyan-50"
 								>
-									{editEvent ? "Updated Document (Optional)" : "Document File"}
+									{isEditing
+										? "Updated Document (Optional)"
+										: "Document File"}
 								</Label>
 								<label
 									htmlFor="file-input"
@@ -471,6 +533,101 @@ export function UploadModal({
 								/>
 							</div>
 
+							{/* Relationships Section */}
+							<div className="grid gap-2 mt-2">
+								<div className="flex items-center justify-between">
+									<Label className="text-sm font-medium">Relationships</Label>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() =>
+											setRelationships([
+												...relationships,
+												{
+													id: crypto.randomUUID(),
+													targetEventId: "",
+													type: RelationshipType.RESULTED_IN,
+												},
+											])
+										}
+										className="h-8 text-cyan-600 hover:text-cyan-700"
+									>
+										<Plus className="h-4 w-4 mr-1" /> Add Relationship
+									</Button>
+								</div>
+								<div className="space-y-2">
+									{relationships.map((rel, index) => (
+										<div key={rel.id} className="flex gap-2">
+											<Select
+												value={rel.type}
+												onValueChange={(val) => {
+													const newRels = [...relationships];
+													newRels[index] = {
+														...newRels[index],
+														type: val as RelationshipType,
+													};
+													setRelationships(newRels);
+												}}
+											>
+												<SelectTrigger className="w-[140px] bg-white dark:bg-gray-900 border-cyan-200 dark:border-cyan-800 h-8 text-xs">
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													{(
+														Object.entries(RELATIONSHIP_LABELS) as [
+															RelationshipType,
+															string,
+														][]
+													).map(([val, label]) => (
+														<SelectItem key={val} value={val}>
+															{label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+
+											<Select
+												value={rel.targetEventId}
+												onValueChange={(val) => {
+													const newRels = [...relationships];
+													newRels[index] = {
+														...newRels[index],
+														targetEventId: val,
+													};
+													setRelationships(newRels);
+												}}
+											>
+												<SelectTrigger className="flex-1 bg-white dark:bg-gray-900 border-cyan-200 dark:border-cyan-800 h-8 text-xs">
+													<SelectValue placeholder="Select Event" />
+												</SelectTrigger>
+												<SelectContent>
+													{existingEvents?.map((evt) => (
+														<SelectItem key={evt.id} value={evt.id}>
+															{evt.title} ({evt.timestamp?.split("T")[0]})
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() =>
+													setRelationships(
+														relationships.filter((_, i) => i !== index),
+													)
+												}
+												className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										</div>
+									))}
+								</div>
+							</div>
+
 							<div className="grid gap-2 mt-2">
 								<div className="flex items-center justify-between">
 									<Label className="text-sm font-medium">
@@ -481,7 +638,10 @@ export function UploadModal({
 										variant="ghost"
 										size="sm"
 										onClick={() =>
-											setMetadata([...metadata, { key: "", value: "" }])
+											setMetadata([
+												...metadata,
+												{ id: crypto.randomUUID(), key: "", value: "" },
+											])
 										}
 										className="h-8 text-cyan-600 hover:text-cyan-700"
 									>
@@ -490,7 +650,7 @@ export function UploadModal({
 								</div>
 								<div className="space-y-2">
 									{metadata.map((item, index) => (
-										<div key={`${index}-${item.key}`} className="flex gap-2">
+										<div key={item.id} className="flex gap-2">
 											<Input
 												placeholder="Key"
 												value={item.key}
@@ -552,7 +712,7 @@ export function UploadModal({
 							</Button>
 							<Button
 								onClick={handleUpload}
-								disabled={(!editEvent && !file) || isUploading}
+								disabled={(!isEditing && !file) || isUploading}
 								className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[140px]"
 							>
 								{isUploading ? (
@@ -562,7 +722,7 @@ export function UploadModal({
 									</>
 								) : // Dynamic label based on lock state
 								isUnlocked ? (
-									editEvent ? (
+									isEditing ? (
 										"Confirm Correction"
 									) : (
 										"Encrypt & Upload"

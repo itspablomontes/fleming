@@ -55,6 +55,7 @@ interface TimelineEventNodeProps {
 	x: number;
 	y: number;
 	isSelected: boolean;
+	isLinkSource?: boolean;
 	onClick: () => void;
 	onMouseEnter?: () => void;
 	onMouseLeave?: () => void;
@@ -66,6 +67,7 @@ function TimelineEventNodeComponent({
 	x,
 	y,
 	isSelected,
+	isLinkSource = false,
 	onClick,
 	onMouseEnter,
 	onMouseLeave,
@@ -121,13 +123,19 @@ function TimelineEventNodeComponent({
 					display: "flex",
 					alignItems: "center",
 					justifyContent: "center",
-					boxShadow: isSelected
-						? `0 0 20px ${colors.glow}, 0 0 40px ${colors.glow}`
-						: isHovered
-							? `0 0 15px ${colors.glow}`
-							: "none",
+					boxShadow: isLinkSource
+						? `0 0 25px rgba(245, 158, 11, 0.8), 0 0 50px rgba(245, 158, 11, 0.5)`
+						: isSelected
+							? `0 0 20px ${colors.glow}, 0 0 40px ${colors.glow}`
+							: isHovered
+								? `0 0 15px ${colors.glow}`
+								: "none",
 					transition: "all 0.2s ease",
-					animation: isSelected ? "pulse 2s infinite" : "none",
+					animation: isLinkSource
+						? "pulse 1s infinite"
+						: isSelected
+							? "pulse 2s infinite"
+							: "none",
 				}}
 			>
 				<Icon

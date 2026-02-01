@@ -1,5 +1,6 @@
 import { BookOpen, Github, Twitter } from "lucide-react";
 import { Logo } from "@/components/common/logo";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,21 +18,31 @@ const footerLinks = {
 		{ label: "Features", href: "#features" },
 	],
 	resources: [
-		{ label: "Documentation", href: "https://github.com/itspablomontes/fleming/tree/main/docs", external: true },
+		{
+			label: "Documentation",
+			href: "https://github.com/itspablomontes/fleming/tree/main/docs",
+			external: true,
+			comingSoon: true,
+		},
 		{ label: "Architecture", href: "https://github.com/itspablomontes/fleming/blob/main/docs/ARCHITECTURE.md", external: true },
 		{ label: "Roadmap", href: "https://github.com/itspablomontes/fleming/blob/main/docs/ROADMAP.md", external: true },
 	],
 	community: [
 		{ label: "GitHub", href: "https://github.com/itspablomontes/fleming", external: true },
 		{ label: "Contributing", href: "https://github.com/itspablomontes/fleming/blob/main/CONTRIBUTING.md", external: true },
-		{ label: "Discord", href: "#", external: true },
+		{ label: "Discord", href: "#", external: true, comingSoon: true },
 	],
 };
 
 const socialLinks = [
 	{ icon: Github, href: "https://github.com/itspablomontes/fleming", label: "GitHub" },
 	{ icon: Twitter, href: "#", label: "Twitter" },
-	{ icon: BookOpen, href: "https://github.com/itspablomontes/fleming/tree/main/docs", label: "Docs" },
+	{
+		icon: BookOpen,
+		href: "https://github.com/itspablomontes/fleming/tree/main/docs",
+		label: "Docs",
+		comingSoon: true,
+	},
 ];
 
 export function LandingFooter({ className }: LandingFooterProps) {
@@ -56,23 +67,43 @@ export function LandingFooter({ className }: LandingFooterProps) {
 
 						{/* Social links */}
 						<div className="mt-6 flex items-center gap-4">
-							{socialLinks.map((link) => (
-								<a
-									key={link.label}
-									href={link.href}
-									target="_blank"
-									rel="noopener noreferrer"
-									aria-label={link.label}
-									className={cn(
-										"flex h-9 w-9 items-center justify-center",
-										"rounded-lg border border-border bg-card/50",
-										"text-muted-foreground transition-all duration-200",
-										"hover:border-primary/50 hover:text-foreground hover:bg-primary/10",
-									)}
-								>
-									<link.icon className="h-4 w-4" />
-								</a>
-							))}
+							{socialLinks.map((link) => {
+								const icon = <link.icon className="h-4 w-4" />;
+
+								if (link.comingSoon) {
+									return (
+										<div
+											key={link.label}
+											aria-disabled="true"
+											className={cn(
+												"flex h-9 w-9 items-center justify-center",
+												"rounded-lg border border-border bg-card/50",
+												"text-muted-foreground opacity-60",
+											)}
+										>
+											{icon}
+										</div>
+									);
+								}
+
+								return (
+									<a
+										key={link.label}
+										href={link.href}
+										target="_blank"
+										rel="noopener noreferrer"
+										aria-label={link.label}
+										className={cn(
+											"flex h-9 w-9 items-center justify-center",
+											"rounded-lg border border-border bg-card/50",
+											"text-muted-foreground transition-all duration-200",
+											"hover:border-primary/50 hover:text-foreground hover:bg-primary/10",
+										)}
+									>
+										{icon}
+									</a>
+								);
+							})}
 						</div>
 					</div>
 
@@ -105,17 +136,29 @@ export function LandingFooter({ className }: LandingFooterProps) {
 							<ul className="space-y-3">
 								{footerLinks.resources.map((link) => (
 									<li key={link.label}>
-										<a
-											href={link.href}
-											target={link.external ? "_blank" : undefined}
-											rel={link.external ? "noopener noreferrer" : undefined}
-											className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-										>
-											{link.label}
-											{link.external && (
-												<span className="ml-1 text-xs">↗</span>
-											)}
-										</a>
+										{link.comingSoon ? (
+											<div className="flex items-center gap-2 text-sm text-muted-foreground">
+												<span>{link.label}</span>
+												<Badge
+													variant="secondary"
+													className="bg-muted text-muted-foreground"
+												>
+													Coming soon
+												</Badge>
+											</div>
+										) : (
+											<a
+												href={link.href}
+												target={link.external ? "_blank" : undefined}
+												rel={link.external ? "noopener noreferrer" : undefined}
+												className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+											>
+												{link.label}
+												{link.external && (
+													<span className="ml-1 text-xs">↗</span>
+												)}
+											</a>
+										)}
 									</li>
 								))}
 							</ul>
@@ -129,17 +172,29 @@ export function LandingFooter({ className }: LandingFooterProps) {
 							<ul className="space-y-3">
 								{footerLinks.community.map((link) => (
 									<li key={link.label}>
-										<a
-											href={link.href}
-											target={link.external ? "_blank" : undefined}
-											rel={link.external ? "noopener noreferrer" : undefined}
-											className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-										>
-											{link.label}
-											{link.external && (
-												<span className="ml-1 text-xs">↗</span>
-											)}
-										</a>
+										{link.comingSoon ? (
+											<div className="flex items-center gap-2 text-sm text-muted-foreground">
+												<span>{link.label}</span>
+												<Badge
+													variant="secondary"
+													className="bg-muted text-muted-foreground"
+												>
+													Coming soon
+												</Badge>
+											</div>
+										) : (
+											<a
+												href={link.href}
+												target={link.external ? "_blank" : undefined}
+												rel={link.external ? "noopener noreferrer" : undefined}
+												className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+											>
+												{link.label}
+												{link.external && (
+													<span className="ml-1 text-xs">↗</span>
+												)}
+											</a>
+										)}
 									</li>
 								))}
 							</ul>

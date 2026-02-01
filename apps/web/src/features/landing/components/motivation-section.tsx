@@ -8,13 +8,13 @@ import { motion } from "motion/react";
  */
 export function MotivationSection() {
 	return (
-		<section className="py-24 md:py-32 bg-background relative overflow-hidden">
+		<section className="py-16 md:py-24 bg-background relative overflow-hidden">
 			{/* Subtle background gradient for depth - simplified, minimalist */}
 			<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/5 via-background to-background opacity-40 pointer-events-none" />
 
 			<div className="container px-4 mx-auto max-w-6xl relative z-10">
 				{/* Section Header */}
-				<div className="text-center mb-16">
+				<div className="text-center mb-10 md:mb-12">
 					<motion.h2
 						initial={{ opacity: 0, y: 10 }}
 						whileInView={{ opacity: 1, y: 0 }}

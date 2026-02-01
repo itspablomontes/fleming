@@ -83,9 +83,9 @@ export function UseCasesSection() {
     ];
 
     return (
-        <section className="py-24 md:py-32 bg-muted/20 relative">
+        <section className="py-16 md:py-24 bg-muted/20 relative">
             <div className="container px-4 mx-auto max-w-6xl">
-                 <div className="text-center mb-16 space-y-4">
+                 <div className="text-center mb-10 md:mb-12 space-y-4">
                     <h2 className={cn(
                         "text-3xl md:text-4xl font-bold tracking-tight inline-block",
                         "bg-clip-text text-transparent bg-linear-to-r from-foreground to-foreground/70"

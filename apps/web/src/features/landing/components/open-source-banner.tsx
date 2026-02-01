@@ -1,4 +1,5 @@
 import { BookOpen, Github, Heart, MessageCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -23,12 +24,14 @@ const contributionLinks = [
 		label: "Read the Docs",
 		href: "https://github.com/itspablomontes/fleming/tree/main/docs",
 		description: "Architecture, roadmap, and guides",
+		comingSoon: true,
 	},
 	{
 		icon: MessageCircle,
 		label: "Join Discord",
-		href: "#", // TODO: Add Discord link
+		href: "#",
 		description: "Chat with the community",
+		comingSoon: true,
 	},
 ];
 
@@ -37,7 +40,7 @@ export function OpenSourceBanner({ className }: OpenSourceBannerProps) {
 		<section
 			id="open-source"
 			className={cn(
-				"relative py-24 md:py-32",
+				"relative py-16 md:py-24",
 				"scroll-mt-20",
 				className,
 			)}
@@ -85,44 +88,72 @@ export function OpenSourceBanner({ className }: OpenSourceBannerProps) {
 
 				{/* Contribution cards */}
 				<div className="mt-12 grid gap-4 sm:grid-cols-3">
-					{contributionLinks.map((link, index) => (
-						<a
-							key={link.label}
-							href={link.href}
-							target={link.href.startsWith("http") ? "_blank" : undefined}
-							rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
-							className={cn(
-								"group relative overflow-hidden",
-								"rounded-xl border border-border",
-								"bg-card/50 backdrop-blur-sm p-6",
-								"transition-all duration-300 ease-out-expo",
-								"hover:border-primary/50 hover:bg-card/80",
-								"hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10",
-							)}
-							style={{
-								animationDelay: `${index * 100}ms`,
-							}}
-						>
-							{/* Icon */}
-							<div
-								className={cn(
-									"mx-auto mb-4 flex h-12 w-12 items-center justify-center",
-									"rounded-lg bg-primary/10",
-									"transition-transform duration-300",
-									"group-hover:scale-110",
-								)}
-							>
-								<link.icon className="h-6 w-6 text-primary" />
-							</div>
+					{contributionLinks.map((link, index) => {
+						const content = (
+							<>
+								{/* Icon */}
+								<div
+									className={cn(
+										"mx-auto mb-4 flex h-12 w-12 items-center justify-center",
+										"rounded-lg bg-primary/10",
+										"transition-transform duration-300",
+										!link.comingSoon && "group-hover:scale-110",
+									)}
+								>
+									<link.icon className="h-6 w-6 text-primary" />
+								</div>
 
-							<h3 className="mb-1 font-semibold text-foreground">
-								{link.label}
-							</h3>
-							<p className="text-sm text-muted-foreground">
-								{link.description}
-							</p>
-						</a>
-					))}
+								<div className="mb-1 flex items-center justify-center gap-2">
+									<h3 className="font-semibold text-foreground">{link.label}</h3>
+									{link.comingSoon && (
+										<Badge variant="secondary" className="bg-muted text-muted-foreground">
+											Coming soon
+										</Badge>
+									)}
+								</div>
+
+								<p className="text-sm text-muted-foreground">{link.description}</p>
+							</>
+						);
+
+						if (link.comingSoon) {
+							return (
+								<div
+									key={link.label}
+									aria-disabled="true"
+									className={cn(
+										"group relative overflow-hidden",
+										"rounded-xl border border-border",
+										"bg-card/50 backdrop-blur-sm p-6",
+										"opacity-70",
+									)}
+									style={{ animationDelay: `${index * 100}ms` }}
+								>
+									{content}
+								</div>
+							);
+						}
+
+						return (
+							<a
+								key={link.label}
+								href={link.href}
+								target={link.href.startsWith("http") ? "_blank" : undefined}
+								rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
+								className={cn(
+									"group relative overflow-hidden",
+									"rounded-xl border border-border",
+									"bg-card/50 backdrop-blur-sm p-6",
+									"transition-all duration-300 ease-out-expo",
+									"hover:border-primary/50 hover:bg-card/80",
+									"hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10",
+								)}
+								style={{ animationDelay: `${index * 100}ms` }}
+							>
+								{content}
+							</a>
+						);
+					})}
 				</div>
 
 				{/* MIT License badge */}

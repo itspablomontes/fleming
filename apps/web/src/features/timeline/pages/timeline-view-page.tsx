@@ -10,6 +10,8 @@ import { useTimelineCoordinator } from "@/features/timeline/stores/timeline-coor
 import { deleteEvent, getGraphData } from "../api";
 import { EventDrawer } from "../components/event-drawer";
 import { HorizontalTimeline } from "../components/horizontal-timeline";
+import { LinkModeFAB } from "../components/link-mode-fab";
+import { RelationshipTypePicker } from "../components/relationship-type-picker";
 import { TimelineItem } from "../components/timeline-item";
 import { UploadFAB } from "../components/upload-fab";
 import { UploadModal } from "../components/upload-modal";
@@ -31,6 +33,12 @@ export function TimelineViewPage(): JSX.Element {
 	const startEdit = useTimelineCoordinator((state) => state.startEdit);
 	const startUpload = useTimelineCoordinator((state) => state.startUpload);
 	const resetAll = useTimelineCoordinator((state) => state.resetAll);
+	// Link mode state
+	const linkSource = useTimelineCoordinator((state) => state.linkSource);
+	const pendingTarget = useTimelineCoordinator((state) => state.pendingTarget);
+	const clearPendingTarget = useTimelineCoordinator(
+		(state) => state.clearPendingTarget,
+	);
 
 	const refreshData = useCallback(async () => {
 		try {
@@ -147,7 +155,7 @@ export function TimelineViewPage(): JSX.Element {
 			<div
 				className={`absolute inset-0 top-[72px] z-0 hidden md:flex items-center transition-all duration-700 ease-in-out pointer-events-none ${
 					selectedEvent
-						? "opacity-30 -translate-y-1/3 blur-[1.4px]"
+						? "opacity-30 -translate-y-1/3"
 						: "opacity-100 translate-y-0"
 				}`}
 			>
@@ -195,7 +203,11 @@ export function TimelineViewPage(): JSX.Element {
 				onEventClick={handleEventClick}
 				onEdit={handleEdit}
 				onArchive={handleArchive}
+				onRelationshipDeleted={refreshData}
 			/>
+
+			{/* Link Mode FAB */}
+			<LinkModeFAB />
 
 			{/* Upload FAB */}
 			<UploadFAB
@@ -205,9 +217,19 @@ export function TimelineViewPage(): JSX.Element {
 				}}
 			/>
 
+			{/* Relationship Type Picker Modal */}
+			<RelationshipTypePicker
+				isOpen={!!linkSource && !!pendingTarget}
+				source={linkSource}
+				target={pendingTarget}
+				onClose={clearPendingTarget}
+				onSuccess={refreshData}
+			/>
+
 			{/* Upload Modal */}
 			<UploadModal
 				isOpen={uploadModalOpen}
+				existingEvents={data.events}
 				onClose={() => {
 					setUploadModalOpen(false);
 					resetAll();

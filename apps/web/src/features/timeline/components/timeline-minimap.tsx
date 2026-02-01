@@ -1,3 +1,4 @@
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { useRef } from "react";
 import type { GraphData } from "../types";
 
@@ -109,19 +110,39 @@ export function TimelineMinimap({
 					}}
 				/>
 			</div>
-			<div className="flex justify-between text-[10px] text-muted-foreground px-1 uppercase tracking-wider font-medium">
-				<span>
-					{minDate.toLocaleDateString(undefined, {
-						month: "short",
-						year: "numeric",
-					})}
-				</span>
-				<span>
-					{maxDate.toLocaleDateString(undefined, {
-						month: "short",
-						year: "numeric",
-					})}
-				</span>
+			<div className="flex justify-between items-center text-[10px] text-muted-foreground px-1 uppercase tracking-wider font-medium">
+				<div className="flex items-center gap-2">
+					<button
+						type="button"
+						onClick={() => onScroll(0)}
+						className="p-1 hover:bg-muted rounded text-primary/70 hover:text-primary transition-colors"
+						title="Go to Start"
+					>
+						<ChevronsLeft className="h-3 w-3" />
+					</button>
+					<span>
+						{minDate.toLocaleDateString(undefined, {
+							month: "short",
+							year: "numeric",
+						})}
+					</span>
+				</div>
+				<div className="flex items-center gap-2">
+					<span>
+						{maxDate.toLocaleDateString(undefined, {
+							month: "short",
+							year: "numeric",
+						})}
+					</span>
+					<button
+						type="button"
+						onClick={() => onScroll(1)}
+						className="p-1 hover:bg-muted rounded text-primary/70 hover:text-primary transition-colors"
+						title="Go to End"
+					>
+						<ChevronsRight className="h-3 w-3" />
+					</button>
+				</div>
 			</div>
 		</div>
 	);

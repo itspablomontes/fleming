@@ -114,7 +114,7 @@ export function TrustSignalsExpanded({ className }: TrustSignalsExpandedProps) {
 	return (
 		<section
 			id="features"
-			className={cn("relative py-16 md:py-24 scroll-mt-20", className)}
+			className={cn("relative py-12 md:py-16 scroll-mt-20", className)}
 		>
 			<div className="mx-auto max-w-6xl px-4">
 				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

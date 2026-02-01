@@ -1,8 +1,11 @@
 import {
+	ArrowLeft,
+	ArrowRight,
 	Download,
 	Edit,
 	File,
 	FileText,
+	Link2,
 	Loader2,
 	Lock,
 	Network,
@@ -30,8 +33,8 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useVault } from "@/features/auth/contexts/vault-context";
-import { API_URL } from "@/lib/api-client";
 import { validateUserAddressInput } from "@/lib/address";
+import { API_URL } from "@/lib/api-client";
 import {
 	decryptChunkedBuffer,
 	decryptFile,
@@ -39,8 +42,8 @@ import {
 	wrapKey,
 } from "@/lib/crypto/encryption";
 import { deriveMasterKey } from "@/lib/crypto/keys";
-import { getFileKey, shareFileKey } from "../api";
-import type { EventEdge, EventFile, TimelineEvent } from "../types";
+import { getFileKey, shareFileKey, unlinkEvents } from "../api";
+import { type EventEdge, type EventFile, RELATIONSHIP_LABELS, type TimelineEvent } from "../types";
 import { RelationshipCluster } from "./relationship-cluster";
 
 interface EventDrawerProps {
@@ -54,6 +57,7 @@ interface EventDrawerProps {
 	onEventClick: (event: TimelineEvent) => void;
 	onEdit?: (event: TimelineEvent) => void;
 	onArchive?: (event: TimelineEvent) => void;
+	onRelationshipDeleted?: () => void;
 }
 
 export function EventDrawer({
@@ -63,6 +67,7 @@ export function EventDrawer({
 	onEventClick,
 	onEdit,
 	onArchive,
+	onRelationshipDeleted,
 }: EventDrawerProps) {
 	const [viewMode, setViewMode] = useState<"cluster" | "details">(() => {
 		if (typeof window !== "undefined") {
@@ -80,6 +85,8 @@ export function EventDrawer({
 	const [isSharing, setIsSharing] = useState(false);
 	const [shareError, setShareError] = useState<string | null>(null);
 	const [downloadError, setDownloadError] = useState<string | null>(null);
+	const [deletingEdgeId, setDeletingEdgeId] = useState<string | null>(null);
+	const [edgeToDelete, setEdgeToDelete] = useState<EventEdge | null>(null);
 
 	const toBytes = useCallback((hex: string) => {
 		const normalized = hex.startsWith("0x") ? hex.slice(2) : hex;
@@ -224,6 +231,20 @@ export function EventDrawer({
 		toHex,
 	]);
 
+	const handleDeleteRelationship = useCallback(async () => {
+		if (!edgeToDelete) return;
+		setDeletingEdgeId(edgeToDelete.id);
+		try {
+			await unlinkEvents(edgeToDelete.id);
+			onRelationshipDeleted?.();
+		} catch (error) {
+			console.error("Failed to delete relationship:", error);
+		} finally {
+			setDeletingEdgeId(null);
+			setEdgeToDelete(null);
+		}
+	}, [edgeToDelete, onRelationshipDeleted]);
+
 	useEffect(() => {
 		localStorage.setItem("fleming-drawer-mode", viewMode);
 	}, [viewMode]);
@@ -232,9 +253,10 @@ export function EventDrawer({
 
 	return (
 		<>
-			<Sheet open={!!event} onOpenChange={(open) => !open && onClose()}>
+			<Sheet open={!!event} onOpenChange={(open) => !open && onClose()} modal={false}>
 				<SheetContent
 					side="bottom"
+					hideOverlay
 					className="h-[80vh] sm:h-[600px] p-0 gap-0 border-t-2 border-primary/20 bg-background/95"
 				>
 					<div className="flex h-full flex-col">
@@ -305,7 +327,7 @@ export function EventDrawer({
 						{/* Content Area */}
 						<div className="flex-1 overflow-hidden relative">
 							{viewMode === "cluster" ? (
-								<div className="h-full w-full bg-black/20">
+								<div className="h-full w-full">
 									<RelationshipCluster
 										centerEvent={event}
 										relatedEvents={relatedEvents}
@@ -370,6 +392,74 @@ export function EventDrawer({
 													</div>
 												</section>
 											)}
+
+										{/* Relationships Section */}
+										{relatedEvents.length > 0 && (
+											<section>
+												<div className="flex items-center justify-between mb-3">
+													<h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+														<Link2 className="w-4 h-4" />
+														Relationships
+													</h3>
+													<span className="text-xs text-muted-foreground">
+														{relatedEvents.length} connection{relatedEvents.length !== 1 ? "s" : ""}
+													</span>
+												</div>
+												<div className="space-y-3">
+													{relatedEvents.map(({ event: relatedEvent, edge, direction }) => (
+														<div
+															key={edge.id}
+															className="group flex items-center justify-between p-3 rounded-lg border border-border bg-card/50 hover:bg-card hover:border-primary/30 transition-all"
+														>
+															<button
+																type="button"
+																onClick={() => onEventClick(relatedEvent)}
+																className="flex items-center gap-3 flex-1 text-left cursor-pointer"
+															>
+																{/* Direction Indicator */}
+																<div className={`h-8 w-8 rounded-full flex items-center justify-center ${direction === "outgoing" ? "bg-primary/20 text-primary" : "bg-amber-500/20 text-amber-500"}`}>
+																	{direction === "outgoing" ? (
+																		<ArrowRight className="w-4 h-4" />
+																	) : (
+																		<ArrowLeft className="w-4 h-4" />
+																	)}
+																</div>
+																<div className="overflow-hidden">
+																	<div className="font-medium truncate max-w-[180px]">
+																		{relatedEvent.title}
+																	</div>
+																	<div className="flex items-center gap-2 text-xs text-muted-foreground">
+																		<span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-medium">
+																			{RELATIONSHIP_LABELS[edge.relationshipType] || edge.relationshipType}
+																		</span>
+																		<span>•</span>
+																		<span>
+																			{new Date(relatedEvent.timestamp).toLocaleDateString()}
+																		</span>
+																	</div>
+																</div>
+															</button>
+															{/* Delete Button */}
+															<button
+																type="button"
+																onClick={() => setEdgeToDelete(edge)}
+																disabled={deletingEdgeId === edge.id}
+																className="p-2 rounded-full opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+																title="Remove relationship"
+																aria-label="Remove relationship"
+															>
+																{deletingEdgeId === edge.id ? (
+																	<Loader2 className="w-4 h-4 animate-spin" />
+																) : (
+																	<Trash2 className="w-4 h-4" />
+																)}
+															</button>
+														</div>
+													))}
+												</div>
+											</section>
+										)}
+
 
 										{event.files && event.files.length > 0 && (
 											<section>
@@ -527,6 +617,17 @@ export function EventDrawer({
 				message={downloadError ?? "Unable to download file."}
 				confirmLabel="OK"
 				cancelLabel="Close"
+				variant="warning"
+			/>
+
+			<ConfirmationModal
+				isOpen={!!edgeToDelete}
+				onOpenChange={(open) => !open && setEdgeToDelete(null)}
+				onConfirm={handleDeleteRelationship}
+				title="Remove Relationship"
+				message={`Are you sure you want to remove this relationship? This cannot be undone.`}
+				confirmLabel="Remove"
+				cancelLabel="Cancel"
 				variant="warning"
 			/>
 		</>
