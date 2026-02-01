@@ -27,6 +27,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useTimelineCoordinator } from "../stores/timeline-coordinator";
 import type { GraphData, TimelineEvent } from "../types";
 import { TimelineEventNode } from "./timeline-event-node";
 import { TimelineMinimap } from "./timeline-minimap";
@@ -79,6 +80,19 @@ export function HorizontalTimeline({
 		ratio: number;
 		x: number;
 	} | null>(null);
+
+	// Link mode state from coordinator
+	const isLinkMode = useTimelineCoordinator((state) => state.isLinkMode);
+	const linkSource = useTimelineCoordinator((state) => state.linkSource);
+	const selectLinkSource = useTimelineCoordinator(
+		(state) => state.selectLinkSource,
+	);
+	const selectLinkTarget = useTimelineCoordinator(
+		(state) => state.selectLinkTarget,
+	);
+	const cancelLinkMode = useTimelineCoordinator(
+		(state) => state.cancelLinkMode,
+	);
 
 	// Calculate time range from events
 	const { minDate, maxDate, sortedEvents } = useMemo(() => {
@@ -379,6 +393,14 @@ export function HorizontalTimeline({
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (isEditable(document.activeElement)) return;
 			const key = e.key;
+
+			// Escape cancels link mode
+			if (key === "Escape" && isLinkMode) {
+				e.preventDefault();
+				cancelLinkMode();
+				return;
+			}
+
 			if (
 				key !== "ArrowLeft" &&
 				key !== "ArrowRight" &&
@@ -434,7 +456,7 @@ export function HorizontalTimeline({
 			document.removeEventListener("visibilitychange", handleVisibility);
 			clearKeyRepeat();
 		};
-	}, [handleJumpPrev, handleJumpNext, handleZoomIn, handleZoomOut, clearKeyRepeat]);
+	}, [handleJumpPrev, handleJumpNext, handleZoomIn, handleZoomOut, clearKeyRepeat, isLinkMode, cancelLinkMode]);
 
 	// Drag to scroll handlers
 	const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -461,13 +483,33 @@ export function HorizontalTimeline({
 
 	const handleEventClick = useCallback(
 		(event: TimelineEvent) => {
+			// Handle link mode: two-click flow
+			if (isLinkMode) {
+				if (!linkSource) {
+					// First click: select source
+					selectLinkSource(event);
+				} else if (linkSource.id !== event.id) {
+					// Second click: select target (opens picker modal)
+					selectLinkTarget(event);
+				}
+				return;
+			}
+
+			// Normal mode: toggle selection
 			if (selectedEventId === event.id) {
 				onEventSelect(null); // Deselect if clicking same event
 			} else {
 				onEventSelect(event);
 			}
 		},
-		[selectedEventId, onEventSelect],
+		[
+			selectedEventId,
+			onEventSelect,
+			isLinkMode,
+			linkSource,
+			selectLinkSource,
+			selectLinkTarget,
+		],
 	);
 
 	const handleMinimapScroll = useCallback((percentage: number) => {
@@ -516,7 +558,7 @@ export function HorizontalTimeline({
 				width: "100%",
 				overflowX: "auto",
 				overflowY: "hidden",
-				cursor: isDragging ? "grabbing" : "grab",
+				cursor: isLinkMode ? "crosshair" : isDragging ? "grabbing" : "grab",
 				userSelect: "none",
 				padding: "24px 0",
 				outline: "none",
@@ -533,6 +575,21 @@ export function HorizontalTimeline({
 			onWheel={handleWheel}
 			onScroll={handleScroll}
 		>
+			{/* Link Mode Banner */}
+			{isLinkMode && (
+				<div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-amber-600/90 backdrop-blur-md text-white text-sm font-medium rounded-full shadow-lg animate-pulse flex items-center gap-2">
+					<span className="w-2 h-2 rounded-full bg-white animate-ping" />
+					{linkSource ? (
+						<span>
+							Now click the <strong>target event</strong> to link with "{linkSource.title}"
+						</span>
+					) : (
+						<span>Click an event to start linking</span>
+					)}
+					<span className="text-xs opacity-75">(Esc to cancel)</span>
+				</div>
+			)}
+
 			{/* Controls Overlay */}
 			<div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 p-2 bg-background/80 backdrop-blur-md border border-border rounded-xl shadow-lg">
 				<TooltipProvider>
@@ -697,7 +754,9 @@ export function HorizontalTimeline({
 											? "linear-gradient(to bottom, var(--primary), transparent)"
 											: "linear-gradient(to bottom, var(--muted-foreground), transparent)",
 									transform: "translateX(-50%)",
-									transition: "all 0.3s ease",
+									// Only animate colors, not position (left/top) to prevent disassembling during zoom
+									transition:
+										"background 0.3s ease, opacity 0.3s ease, transform 0.3s ease",
 									pointerEvents: "none",
 									zIndex: 0,
 								}}
@@ -717,7 +776,9 @@ export function HorizontalTimeline({
 											? "var(--primary)"
 											: "var(--muted-foreground)",
 									transform: "translate(-50%, -50%)",
-									transition: "all 0.3s ease",
+									// Only animate colors, not position (left/top) to prevent disassembling during zoom
+									transition:
+										"background-color 0.3s ease, opacity 0.3s ease, transform 0.3s ease",
 									zIndex: 2,
 								}}
 							/>
@@ -727,6 +788,7 @@ export function HorizontalTimeline({
 								x={x}
 								y={y + 100} // Offset because we increased container height
 								isSelected={isSelected}
+								isLinkSource={isLinkMode && linkSource?.id === event.id}
 								onClick={() => handleEventClick(event)}
 								onMouseEnter={() => setHoveredEventId(event.id)}
 								onMouseLeave={() => setHoveredEventId(null)}
