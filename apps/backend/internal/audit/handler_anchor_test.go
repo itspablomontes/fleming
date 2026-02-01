@@ -18,7 +18,7 @@ type memRepo struct {
 	batches map[string]*AuditBatch
 }
 
-func (m *memRepo) Create(ctx context.Context, entry *AuditEntry) error { return nil }
+func (m *memRepo) Create(ctx context.Context, entry *AuditEntry) error              { return nil }
 func (m *memRepo) GetLatest(ctx context.Context, actor string) (*AuditEntry, error) { return nil, nil }
 func (m *memRepo) List(ctx context.Context, actor string, limit int) ([]AuditEntry, error) {
 	return nil, nil
@@ -30,8 +30,8 @@ func (m *memRepo) GetByActor(ctx context.Context, actor types.WalletAddress) ([]
 	return nil, nil
 }
 func (m *memRepo) GetByID(ctx context.Context, id types.ID) (*AuditEntry, error) { return nil, nil }
-func (m *memRepo) Query(ctx context.Context, filter protocolaudit.QueryFilter) ([]AuditEntry, error) {
-	return nil, nil
+func (m *memRepo) Query(ctx context.Context, filter protocolaudit.QueryFilter) ([]AuditEntry, int64, error) {
+	return nil, 0, nil
 }
 
 func (m *memRepo) CreateBatch(ctx context.Context, batch *AuditBatch) error {

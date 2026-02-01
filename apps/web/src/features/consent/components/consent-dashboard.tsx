@@ -1,9 +1,10 @@
-import type { JSX } from "react";
-import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import type { JSX } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -83,7 +84,12 @@ const matchesFilters = (
 	return true;
 };
 
-export function ConsentDashboard(): JSX.Element {
+interface ConsentDashboardProps {
+	defaultTab?: "pending" | "active" | "history";
+	mode: "grantor" | "grantee"; // grantor = My Data, grantee = External Access
+}
+
+export function ConsentDashboard({ defaultTab = "pending", mode }: ConsentDashboardProps): JSX.Element {
 	const [filters, setFilters] = useState<ConsentFilters>(defaultFilters);
 	const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -162,16 +168,26 @@ export function ConsentDashboard(): JSX.Element {
 	const isLoading = myGrantsQuery.isLoading || activeGrantsQuery.isLoading;
 	const hasError = Boolean(myGrantsQuery.error || activeGrantsQuery.error);
 
+    const [activeTab, setActiveTab] = useState<string>(defaultTab);
+
+	useEffect(() => {
+		if (defaultTab) {
+			setActiveTab(defaultTab);
+		}
+	}, [defaultTab]);
+
 	return (
 		<div className="space-y-6">
 			<Card className="border-border bg-white dark:bg-gray-900">
 				<CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 					<div className="space-y-2">
 						<CardTitle className="text-base font-semibold text-foreground">
-							Consent dashboard
+							{mode === "grantor" ? "My Consent Dashboard" : "External Access Dashboard"}
 						</CardTitle>
 						<p className="text-sm text-muted-foreground">
-							Track requests, active grants, and history in one place.
+							{mode === "grantor" 
+								? "Manage who has access to your data." 
+								: "View and manage access to other accounts."}
 						</p>
 					</div>
 					<Button
@@ -279,11 +295,15 @@ export function ConsentDashboard(): JSX.Element {
 						</p>
 					)}
 
-					<Tabs defaultValue="pending">
+					<Tabs value={activeTab} onValueChange={setActiveTab}>
 						<TabsList className="w-full justify-start">
-							<TabsTrigger value="pending">Pending requests</TabsTrigger>
-							<TabsTrigger value="active">Active grants</TabsTrigger>
-							<TabsTrigger value="history">History</TabsTrigger>
+							{mode === "grantor" && (
+								<TabsTrigger value="pending">Pending Requests</TabsTrigger>
+							)}
+							<TabsTrigger value="active">Active Grants</TabsTrigger>
+							{mode === "grantor" && (
+								<TabsTrigger value="history">History</TabsTrigger>
+							)}
 						</TabsList>
 
 						<TabsContent value="pending" className="space-y-4">
@@ -293,9 +313,11 @@ export function ConsentDashboard(): JSX.Element {
 									<Skeleton className="h-28 w-full" />
 								</div>
 							) : pendingRequests.length === 0 ? (
-								<p className="text-sm text-muted-foreground">
-									No pending requests right now.
-								</p>
+								<EmptyState
+									title="No pending requests"
+									description="There are no pending requests to access your data."
+									className="min-h-[200px]"
+								/>
 							) : (
 								pendingRequests.map((grant) => (
 									<ConsentRequestCard
@@ -311,48 +333,54 @@ export function ConsentDashboard(): JSX.Element {
 						</TabsContent>
 
 						<TabsContent value="active" className="space-y-6">
-							<div className="space-y-3">
-								<p className="text-xs uppercase tracking-wide text-muted-foreground">
-									Grants you issued
-								</p>
-								{isLoading ? (
-									<div className="space-y-3">
-										<Skeleton className="h-28 w-full" />
-									</div>
-								) : activeIssued.length === 0 ? (
-									<p className="text-sm text-muted-foreground">
-										No active grants you issued.
+							{mode === "grantor" ? (
+								<div className="space-y-3">
+									<p className="text-xs uppercase tracking-wide text-muted-foreground">
+										Grants you issued
 									</p>
-								) : (
-									activeIssued.map((grant) => (
-										<ConsentGrantCard
-											key={grant.id}
-											grant={grant}
-											onRevoke={revokeMutation.mutate}
-											isRevoking={revokeMutation.isPending}
+									{isLoading ? (
+										<div className="space-y-3">
+											<Skeleton className="h-28 w-full" />
+										</div>
+									) : activeIssued.length === 0 ? (
+										<EmptyState
+											title="No active grants"
+											description="You haven't issued any active grants."
+											className="min-h-[200px]"
 										/>
-									))
-								)}
-							</div>
-
-							<div className="space-y-3">
-								<p className="text-xs uppercase tracking-wide text-muted-foreground">
-									Grants issued to you
-								</p>
-								{isLoading ? (
-									<div className="space-y-3">
-										<Skeleton className="h-28 w-full" />
-									</div>
-								) : filteredActiveGrants.length === 0 ? (
-									<p className="text-sm text-muted-foreground">
-										No active grants assigned to you.
+									) : (
+										activeIssued.map((grant) => (
+											<ConsentGrantCard
+												key={grant.id}
+												grant={grant}
+												onRevoke={revokeMutation.mutate}
+												isRevoking={revokeMutation.isPending}
+											/>
+										))
+									)}
+								</div>
+							) : (
+								<div className="space-y-3">
+									<p className="text-xs uppercase tracking-wide text-muted-foreground">
+										Grants issued to you
 									</p>
-								) : (
-									filteredActiveGrants.map((grant) => (
-										<ConsentGrantCard key={grant.id} grant={grant} />
-									))
-								)}
-							</div>
+									{isLoading ? (
+										<div className="space-y-3">
+											<Skeleton className="h-28 w-full" />
+										</div>
+									) : filteredActiveGrants.length === 0 ? (
+										<EmptyState
+											title="No active grants"
+											description="No active grants assigned to you."
+											className="min-h-[200px]"
+										/>
+									) : (
+										filteredActiveGrants.map((grant) => (
+											<ConsentGrantCard key={grant.id} grant={grant} />
+										))
+									)}
+								</div>
+							)}
 						</TabsContent>
 
 						<TabsContent value="history" className="space-y-3">
@@ -362,9 +390,11 @@ export function ConsentDashboard(): JSX.Element {
 									<Skeleton className="h-28 w-full" />
 								</div>
 							) : historyIssued.length === 0 ? (
-								<p className="text-sm text-muted-foreground">
-									No historical grants to show.
-								</p>
+								<EmptyState
+									title="No historical grants"
+									description="No historical grants to show."
+									className="min-h-[200px]"
+								/>
 							) : (
 								historyIssued.map((grant) => (
 									<ConsentGrantCard key={grant.id} grant={grant} />

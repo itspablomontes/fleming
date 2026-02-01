@@ -13,14 +13,12 @@ import (
 // Repository defines the interface for audit log persistence.
 type Repository interface {
 	Create(ctx context.Context, entry *AuditEntry) error
-	// GetLatest returns the most recent entry for the given actor (record owner).
-	// If actor is empty, it returns the most recent entry globally.
 	GetLatest(ctx context.Context, actor string) (*AuditEntry, error)
 	List(ctx context.Context, actor string, limit int) ([]AuditEntry, error)
 	GetByResource(ctx context.Context, resourceID types.ID) ([]AuditEntry, error)
 	GetByActor(ctx context.Context, actor types.WalletAddress) ([]AuditEntry, error)
 	GetByID(ctx context.Context, id types.ID) (*AuditEntry, error)
-	Query(ctx context.Context, filter protocol.QueryFilter) ([]AuditEntry, error)
+	Query(ctx context.Context, filter protocol.QueryFilter) ([]AuditEntry, int64, error)
 	CreateBatch(ctx context.Context, batch *AuditBatch) error
 	UpdateBatch(ctx context.Context, batch *AuditBatch) error
 	GetBatchByIDForActor(ctx context.Context, actor string, id string) (*AuditBatch, error)
@@ -109,9 +107,10 @@ func (r *gormRepository) GetByID(ctx context.Context, id types.ID) (*AuditEntry,
 	return &entry, nil
 }
 
-func (r *gormRepository) Query(ctx context.Context, filter protocol.QueryFilter) ([]AuditEntry, error) {
+func (r *gormRepository) Query(ctx context.Context, filter protocol.QueryFilter) ([]AuditEntry, int64, error) {
 	var entries []AuditEntry
-	query := r.db.WithContext(ctx).Order("timestamp DESC, id DESC")
+	var total int64
+	query := r.db.WithContext(ctx).Model(&AuditEntry{}).Order("timestamp DESC, id DESC")
 
 	if !filter.Actor.IsEmpty() {
 		query = query.Where("actor = ?", filter.Actor.String())
@@ -131,6 +130,11 @@ func (r *gormRepository) Query(ctx context.Context, filter protocol.QueryFilter)
 	if filter.EndTime != nil && !filter.EndTime.IsZero() {
 		query = query.Where("timestamp <= ?", filter.EndTime.Time)
 	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count audit entries: %w", err)
+	}
+
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
 	}
@@ -139,9 +143,9 @@ func (r *gormRepository) Query(ctx context.Context, filter protocol.QueryFilter)
 	}
 
 	if err := query.Find(&entries).Error; err != nil {
-		return nil, fmt.Errorf("query audit entries: %w", err)
+		return nil, 0, fmt.Errorf("query audit entries: %w", err)
 	}
-	return entries, nil
+	return entries, total, nil
 }
 
 func (r *gormRepository) CreateBatch(ctx context.Context, batch *AuditBatch) error {

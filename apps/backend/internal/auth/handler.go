@@ -96,9 +96,12 @@ func (h *Handler) HandleMe(c *gin.Context) {
 	var exists bool
 
 	if env == "dev" && overrideAddress != "" {
-		address = overrideAddress
-		exists = true
-		slog.Debug("auth: HandleMe using dev override", "address", address)
+		_, err := c.Cookie("fleming_has_session")
+		if err == nil {
+			address = overrideAddress
+			exists = true
+			slog.Debug("auth: HandleMe using dev override", "address", address)
+		}
 	} else {
 		val, ok := c.Get("user_address")
 		if ok {

@@ -14,8 +14,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import { toChecksumAddress, validateUserAddressInput } from "@/lib/address";
+import { cn } from "@/lib/utils";
 import type { EthAddress } from "@/types/ethereum";
 
 import { requestConsent } from "../api";
@@ -143,7 +143,7 @@ export function ConsentRequestForm({
 			>
 				{(field) => (
 					<div className="space-y-2">
-						<Label htmlFor={field.name}>Patient address</Label>
+						<Label htmlFor={field.name}>Grantor address</Label>
 						<Input
 							id={field.name}
 							value={field.state.value}

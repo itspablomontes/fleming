@@ -17,7 +17,12 @@ type Log interface {
 
 	GetByID(ctx context.Context, id types.ID) (*Entry, error)
 
-	Query(ctx context.Context, filter QueryFilter) ([]Entry, error)
+	Query(ctx context.Context, filter QueryFilter) (*QueryResult, error)
+}
+
+type QueryResult struct {
+	Entries    []Entry
+	TotalCount int64
 }
 
 type QueryFilter struct {

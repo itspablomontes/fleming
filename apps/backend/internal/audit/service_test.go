@@ -84,7 +84,7 @@ func (m *mockRepo) GetByID(ctx context.Context, id types.ID) (*AuditEntry, error
 	return nil, nil
 }
 
-func (m *mockRepo) Query(ctx context.Context, filter protocol.QueryFilter) ([]AuditEntry, error) {
+func (m *mockRepo) Query(ctx context.Context, filter protocol.QueryFilter) ([]AuditEntry, int64, error) {
 	var result []AuditEntry
 	for _, entry := range m.entries {
 		if !filter.Actor.IsEmpty() && entry.Actor != filter.Actor.String() {
@@ -98,7 +98,7 @@ func (m *mockRepo) Query(ctx context.Context, filter protocol.QueryFilter) ([]Au
 		}
 		result = append(result, entry)
 	}
-	return result, nil
+	return result, int64(len(result)), nil
 }
 
 func (m *mockRepo) CreateBatch(ctx context.Context, batch *AuditBatch) error {

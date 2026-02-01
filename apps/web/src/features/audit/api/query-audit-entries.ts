@@ -3,10 +3,6 @@ import { apiClient } from "@/lib/api-client";
 import type { AuditAction, AuditLogEntry, AuditTargetType } from "../types";
 import { type AuditEntryResponse, mapAuditEntry } from "./mappers";
 
-interface AuditEntriesResponse {
-	entries: AuditEntryResponse[];
-}
-
 export interface AuditQueryParams {
 	actor?: string;
 	resourceId?: string;
@@ -18,9 +14,14 @@ export interface AuditQueryParams {
 	offset?: number;
 }
 
+export interface AuditQueryResult {
+	entries: AuditLogEntry[];
+	total: number;
+}
+
 export const queryAuditEntries = async (
 	params: AuditQueryParams,
-): Promise<AuditLogEntry[]> => {
+): Promise<AuditQueryResult> => {
 	const searchParams = new URLSearchParams();
 
 	if (params.actor) {
@@ -52,5 +53,14 @@ export const queryAuditEntries = async (
 	const response = await apiClient(
 		`/api/audit/query${query ? `?${query}` : ""}`,
 	);
-	return (response as AuditEntriesResponse).entries.map(mapAuditEntry);
+	
+	// Backend returns { entries: [], total: number }
+	// We cast to any because the apiClient return type is generic/unknown by default
+	// but mapping assumes specific structure.
+	const result = response as { entries: AuditEntryResponse[]; total: number };
+	
+	return {
+		entries: result.entries.map(mapAuditEntry),
+		total: result.total,
+	};
 };

@@ -120,7 +120,7 @@ export function ConsentRequestCard({
 							<DialogHeader>
 								<DialogTitle>Deny access request?</DialogTitle>
 								<DialogDescription>
-									This request will be rejected immediately. The doctor will
+									This request will be rejected immediately. The grantee will
 									need to request access again.
 								</DialogDescription>
 							</DialogHeader>

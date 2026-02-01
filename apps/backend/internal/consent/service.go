@@ -11,6 +11,7 @@ import (
 	"github.com/itspablomontes/fleming/apps/backend/internal/common"
 	protocol "github.com/itspablomontes/fleming/pkg/protocol/audit"
 	"github.com/itspablomontes/fleming/pkg/protocol/consent"
+	"github.com/itspablomontes/fleming/pkg/protocol/types"
 )
 
 // ErrInvalidPermission is returned when a permission string is not read, write, or share.
@@ -44,6 +45,18 @@ func NewService(repo Repository, auditService audit.Service) Service {
 }
 
 func (s *service) RequestConsent(ctx context.Context, grantor, grantee, reason string, permissions []string, expiresAt time.Time) (*ConsentGrant, error) {
+	gAddr, err := types.NewWalletAddress(grantor)
+	if err != nil {
+		return nil, fmt.Errorf("consent: invalid grantor address: %w", err)
+	}
+	grantor = gAddr.String()
+
+	geAddr, err := types.NewWalletAddress(grantee)
+	if err != nil {
+		return nil, fmt.Errorf("consent: invalid grantee address: %w", err)
+	}
+	grantee = geAddr.String()
+
 	for _, p := range permissions {
 		if !consent.Permission(p).IsValid() {
 			return nil, fmt.Errorf("%w: %q (must be read, write, or share)", ErrInvalidPermission, p)
@@ -175,6 +188,13 @@ func (s *service) GetGrantByID(ctx context.Context, grantID string) (*ConsentGra
 }
 
 func (s *service) GetActiveGrants(ctx context.Context, grantee string) ([]ConsentGrant, error) {
+	// Normalize address
+	addr, err := types.NewWalletAddress(grantee)
+	if err != nil {
+		return nil, fmt.Errorf("consent: invalid grantee address: %w", err)
+	}
+	grantee = addr.String()
+
 	all, err := s.repo.GetByGrantee(ctx, grantee)
 	if err != nil {
 		return nil, err
@@ -193,6 +213,13 @@ func (s *service) GetActiveGrants(ctx context.Context, grantee string) ([]Consen
 }
 
 func (s *service) GetGrantsByGrantor(ctx context.Context, grantor string) ([]ConsentGrant, error) {
+	// Normalize address
+	addr, err := types.NewWalletAddress(grantor)
+	if err != nil {
+		return nil, fmt.Errorf("consent: invalid grantor address: %w", err)
+	}
+	grantor = addr.String()
+
 	grants, err := s.repo.GetByGrantor(ctx, grantor)
 	if err != nil {
 		return nil, err
@@ -201,6 +228,21 @@ func (s *service) GetGrantsByGrantor(ctx context.Context, grantor string) ([]Con
 }
 
 func (s *service) CheckPermission(ctx context.Context, grantor, grantee string, permission string) (bool, error) {
+	if grantor == grantee {
+		return true, nil
+	}
+
+	// Normalize addresses
+	gAddr, err := types.NewWalletAddress(grantor)
+	if err == nil {
+		grantor = gAddr.String()
+	}
+	geAddr, err := types.NewWalletAddress(grantee)
+	if err == nil {
+		grantee = geAddr.String()
+	}
+
+	// Re-check after normalization
 	if grantor == grantee {
 		return true, nil
 	}
