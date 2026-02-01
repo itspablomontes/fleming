@@ -18,7 +18,7 @@ func (m *MockAuditService) Record(ctx context.Context, actor string, action audi
 func (m *MockAuditService) GetLatestEntries(ctx context.Context, actor string, limit int) ([]internalAudit.AuditEntry, error) {
 	return nil, nil
 }
-func (m *MockAuditService) VerifyIntegrity(ctx context.Context) (bool, error) {
+func (m *MockAuditService) VerifyIntegrity(ctx context.Context, actor string) (bool, error) {
 	return true, nil
 }
 func (m *MockAuditService) BuildMerkleTree(ctx context.Context, actor string, startTime time.Time, endTime time.Time) (*internalAudit.AuditBatch, *audit.MerkleTree, error) {

@@ -135,7 +135,7 @@ func (s *Service) ValidateChallenge(ctx context.Context, address, signature stri
 	}
 
 	// Record successful login in audit trail
-	_ = s.auditService.Record(ctx, address, protocol.ActionLogin, protocol.ResourceSession, address, nil)
+	_ = s.auditService.Record(ctx, addr.String(), protocol.ActionLogin, protocol.ResourceSession, addr.String(), nil)
 
 	return token, nil
 }
