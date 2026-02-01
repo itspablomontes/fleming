@@ -4,7 +4,6 @@ pragma solidity 0.8.30;
 import {Script, console} from "forge-std/Script.sol";
 import {FlemingAnchor} from "../src/FlemingAnchor.sol";
 import {VCRegistry} from "../src/VCRegistry.sol";
-import {ZKVerifier} from "../src/ZKVerifier.sol";
 
 /// @title DeployFleming
 /// @notice Unified deployment script for all Fleming contracts
@@ -23,7 +22,6 @@ contract DeployFleming is Script {
     event DeploymentComplete(
         address indexed anchor,
         address indexed vcRegistry,
-        address indexed zkVerifier,
         uint256 chainId
     );
 
@@ -32,13 +30,11 @@ contract DeployFleming is Script {
     struct DeploymentConfig {
         address anchorer;
         address issuer;
-        uint256 expectedPublicInputCount;
     }
 
     struct DeploymentResult {
         FlemingAnchor anchor;
         VCRegistry vcRegistry;
-        ZKVerifier zkVerifier;
     }
 
     // ─── Constants ─────────────────────────────────────────────────────────────
@@ -73,9 +69,11 @@ contract DeployFleming is Script {
         emit DeploymentComplete(
             address(result.anchor),
             address(result.vcRegistry),
-            address(result.zkVerifier),
             chainId
         );
+
+        // Write to JSON file (Local Dev Automation)
+        _writeDeploymentJSON(result);
 
         return result;
     }
@@ -133,15 +131,6 @@ contract DeployFleming is Script {
                 config.issuer
             );
         }
-        try vm.envUint("ZK_PUBLIC_INPUTS") returns (uint256 count) {
-            config.expectedPublicInputCount = count;
-        } catch {
-            config.expectedPublicInputCount = 2; // Default for basic circuits
-            console.log(
-                "ZK_PUBLIC_INPUTS not set, using default:",
-                config.expectedPublicInputCount
-            );
-        }
         // Validate addresses
         if (config.anchorer == address(0)) revert ZeroAddress("anchorer");
         if (config.issuer == address(0)) revert ZeroAddress("issuer");
@@ -169,16 +158,6 @@ contract DeployFleming is Script {
         console.log("  Initial issuer:", config.issuer);
         console.log("");
 
-        // 3. Deploy ZKVerifier (Phase C.2)
-        console.log("Deploying ZKVerifier...");
-        result.zkVerifier = new ZKVerifier(config.expectedPublicInputCount);
-        console.log("  Address:", address(result.zkVerifier));
-        console.log(
-            "  Expected public inputs:",
-            config.expectedPublicInputCount
-        );
-        console.log("");
-
         vm.stopBroadcast();
 
         return result;
@@ -194,9 +173,6 @@ contract DeployFleming is Script {
         }
         if (address(result.vcRegistry) == address(0)) {
             revert DeploymentFailed("VCRegistry deployment failed");
-        }
-        if (address(result.zkVerifier) == address(0)) {
-            revert DeploymentFailed("ZKVerifier deployment failed");
         }
 
         console.log("All contracts deployed successfully");
@@ -215,10 +191,7 @@ contract DeployFleming is Script {
             "VCREGISTRY_CONTRACT_ADDRESS=%s",
             address(result.vcRegistry)
         );
-        console.log(
-            "ZKVERIFIER_CONTRACT_ADDRESS=%s",
-            address(result.zkVerifier)
-        );
+
         console.log("");
         console.log("Verify contracts:");
         console.log(
@@ -229,11 +202,32 @@ contract DeployFleming is Script {
             "forge verify-contract %s VCRegistry --chain base-sepolia",
             address(result.vcRegistry)
         );
-        console.log(
-            "forge verify-contract %s ZKVerifier --chain base-sepolia",
-            address(result.zkVerifier)
-        );
+
         console.log("");
+    }
+
+    /// @notice Write deployment artifacts to JSON file
+    function _writeDeploymentJSON(DeploymentResult memory result) internal {
+        string memory json = "deployment_export";
+        vm.serializeAddress(json, "anchor", address(result.anchor));
+        string memory output = vm.serializeAddress(
+            json,
+            "vcRegistry",
+            address(result.vcRegistry)
+        );
+
+        // Path where docker-compose expects it (inside container)
+        // We use a relative path that works with the docker volume mount
+        // container working_dir is /workspace/contracts
+        // volume maps ./:/workspace/contracts
+        // OR better: write to a specific path that the docker-compose mount handles.
+        // Actually, compose mount is: ./:/workspace on `contracts-deploy` service
+        // So writing to "deployments.json" puts it in /workspace/contracts/deployments.json
+        // But we want to share it. Let's write to "../deployments.json" to put it in root of workspace?
+        // Or simply "deployments.json" and adjust the compose mount.
+        // Let's stick to "deployments.json" in root of execution (contracts dir).
+        vm.writeJson(output, "deployments.json");
+        console.log("Wrote deployments to deployments.json");
     }
 
     /// @notice Get human-readable network name
