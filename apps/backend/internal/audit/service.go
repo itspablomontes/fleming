@@ -28,7 +28,8 @@ type Service interface {
 	GetEntriesForMerkle(ctx context.Context, actor string, startTime time.Time, endTime time.Time) ([]AuditEntry, error)
 	GetEntryByID(ctx context.Context, id string) (*AuditEntry, error)
 	GetEntriesByResource(ctx context.Context, resourceID string) ([]AuditEntry, error)
-	QueryEntries(ctx context.Context, filter audit.QueryFilter) ([]AuditEntry, error)
+
+	QueryEntries(ctx context.Context, filter audit.QueryFilter) (*audit.QueryResult, error)
 }
 
 type service struct {
@@ -193,7 +194,8 @@ func (s *service) GetEntriesForMerkle(ctx context.Context, actor string, startTi
 	}
 	filter.Limit = 0
 
-	return s.repo.Query(ctx, filter)
+	entries, _, err := s.repo.Query(ctx, filter)
+	return entries, err
 }
 
 func (s *service) GetEntryByID(ctx context.Context, id string) (*AuditEntry, error) {
@@ -204,8 +206,31 @@ func (s *service) GetEntriesByResource(ctx context.Context, resourceID string) (
 	return s.repo.GetByResource(ctx, types.ID(resourceID))
 }
 
-func (s *service) QueryEntries(ctx context.Context, filter audit.QueryFilter) ([]AuditEntry, error) {
-	return s.repo.Query(ctx, filter)
+func (s *service) QueryEntries(ctx context.Context, filter audit.QueryFilter) (*audit.QueryResult, error) {
+	entries, total, err := s.repo.Query(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert DB entries to Protocol entries
+	protocolEntries := make([]audit.Entry, len(entries))
+	for i, e := range entries {
+		protocolEntries[i] = audit.Entry{
+			Actor:        types.WalletAddress(e.Actor),
+			Action:       e.Action,
+			ResourceType: e.ResourceType,
+			ResourceID:   types.ID(e.ResourceID),
+			Timestamp:    e.Timestamp,
+			Hash:         e.Hash,
+			PreviousHash: e.PreviousHash,
+			Metadata:     types.Metadata(e.Metadata),
+		}
+	}
+
+	return &audit.QueryResult{
+		Entries:    protocolEntries,
+		TotalCount: total,
+	}, nil
 }
 
 func (s *service) BuildMerkleTree(ctx context.Context, actor string, startTime time.Time, endTime time.Time) (*AuditBatch, *audit.MerkleTree, error) {

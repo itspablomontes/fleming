@@ -196,13 +196,16 @@ func (h *Handler) HandleQuery(c *gin.Context) {
 		filter.Offset = value
 	}
 
-	entries, err := h.service.QueryEntries(c.Request.Context(), filter)
+	result, err := h.service.QueryEntries(c.Request.Context(), filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query entries"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"entries": entries})
+	c.JSON(http.StatusOK, gin.H{
+		"entries": result.Entries,
+		"total":   result.TotalCount,
+	})
 }
 
 type merkleBuildRequest struct {
