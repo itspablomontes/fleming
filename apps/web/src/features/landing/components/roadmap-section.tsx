@@ -9,7 +9,7 @@ import {
 	Sparkles,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,7 @@ interface RoadmapPhase {
 	title: string;
 	subtitle: string;
 	status: PhaseStatus;
+	disabled?: boolean;
 	icon: React.ElementType;
 	description: string;
 	items: {
@@ -66,9 +67,9 @@ const phases: RoadmapPhase[] = [
 			"Mandatory integration phase. Bridging the gap between private data and public trust with on-chain anchoring.",
 		items: [
 			{ label: "Merkle Tree Construction", status: "done" },
-			{ label: "Base L2 Anchoring Contract", status: "done" },
-			{ label: "Batch Verification API", status: "progress" },
-			{ label: "Automated Cron Anchoring", status: "progress" },
+			{ label: "Base L2 Anchoring Contract", status: "progress" },
+			{ label: "Batch Verification API", status: "pending" },
+			{ label: "Automated Cron Anchoring", status: "pending" },
 			{ label: "Data Export (Vault ZIP)", status: "pending" },
 		],
 	},
@@ -94,12 +95,22 @@ const phases: RoadmapPhase[] = [
 export function RoadmapSection() {
 	const [activePhaseId, setActivePhaseId] = useState<string>("integration");
 
-	const activePhase = phases.find((p) => p.id === activePhaseId) || phases[0];
+	const activePhase =
+		phases.find((p) => p.id === activePhaseId && !p.disabled) ||
+		phases.find((p) => !p.disabled) ||
+		phases[0];
+
+	// Keep state aligned if the currently selected phase becomes disabled.
+	useEffect(() => {
+		if (activePhaseId !== activePhase.id) {
+			setActivePhaseId(activePhase.id);
+		}
+	}, [activePhaseId, activePhase.id]);
 
 	return (
 		<section
 			id="roadmap"
-			className="relative py-24 bg-muted/30 overflow-hidden"
+			className="relative py-16 md:py-24 bg-muted/30 overflow-hidden"
 		>
 			{/* Background decorations */}
 			<div className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-border to-transparent opacity-50" />
@@ -108,7 +119,7 @@ export function RoadmapSection() {
 
 			<div className="container relative mx-auto px-4 max-w-6xl">
 				{/* Header */}
-				<div className="text-center mb-16 space-y-4">
+				<div className="text-center mb-10 md:mb-12 space-y-4">
 					<h2
 						className={cn(
 							"text-3xl md:text-4xl font-bold tracking-tight inline-block gradient-text",
@@ -133,21 +144,29 @@ export function RoadmapSection() {
 					{phases.map((phase) => {
 						const isActive = activePhaseId === phase.id;
 						const Icon = phase.icon;
+						const isDisabled = Boolean(phase.disabled);
 
 						return (
 							<button
 								type="button"
 								key={phase.id}
-								onClick={() => setActivePhaseId(phase.id)}
+								onClick={() => {
+									if (!isDisabled) {
+										setActivePhaseId(phase.id);
+									}
+								}}
+								disabled={isDisabled}
+								aria-disabled={isDisabled}
 								className={cn(
 									"relative group flex items-center gap-3 px-6 py-3 rounded-full border transition-all duration-300",
+									isDisabled && "cursor-not-allowed opacity-50",
 									isActive
 										? "bg-background border-primary/50 shadow-lg scale-105"
 										: "bg-background/50 border-transparent hover:border-border hover:bg-background/80",
 								)}
 							>
 								{/* Active Pill Glow */}
-								{isActive && (
+								{isActive && !isDisabled && (
 									<div
 										className={cn(
 											"absolute inset-0 rounded-full opacity-20 bg-linear-to-r",

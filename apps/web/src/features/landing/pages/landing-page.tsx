@@ -22,10 +22,10 @@ export function LandingPage() {
 			<FloatingNav />
 
 			{/* Hero section */}
-			<LandingHero className="mb-10 md:mb-12" actionButton={<AuthButton />} />
+			<LandingHero className="mb-6 md:mb-8" actionButton={<AuthButton />} />
 
 			{/* Trust signals expanded (bento grid) */}
-			<div className="mb-16 md:mb-24">
+			<div className="mb-8 md:mb-12">
 				<TrustSignalsExpanded />
 			</div>
 
@@ -33,7 +33,7 @@ export function LandingPage() {
 			<MotivationSection />
 
 			{/* How it works - 3 step flow */}
-			<div className="mb-12 md:mb-16">
+			<div className="mb-8 md:mb-10">
 				<HowItWorks />
 			</div>
 
@@ -44,12 +44,12 @@ export function LandingPage() {
 			<RoadmapSection />
 
 			{/* For DeSci - ecosystem integration */}
-			<div className="mb-12 md:mb-16">
+			<div className="mb-8 md:mb-10">
 				<ForDeSciSection />
 			</div>
 
 			{/* Open source CTA */}
-			<div className="mb-12 md:mb-16">
+			<div className="mb-8 md:mb-10">
 				<OpenSourceBanner />
 			</div>
 

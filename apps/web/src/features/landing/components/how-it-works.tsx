@@ -42,7 +42,7 @@ export function HowItWorks({ className }: HowItWorksProps) {
 		<section
 			id="how-it-works"
 			className={cn(
-				"relative py-24 md:py-32",
+				"relative py-16 md:py-24",
 				"scroll-mt-20",
 				className,
 			)}
@@ -58,7 +58,7 @@ export function HowItWorks({ className }: HowItWorksProps) {
 
 			<div className="relative z-10 mx-auto max-w-6xl px-4">
 				{/* Section header */}
-				<div className="mb-16 text-center">
+				<div className="mb-10 md:mb-12 text-center">
 					<p className="mb-4 text-sm font-medium uppercase tracking-widest text-primary">
 						How It Works
 					</p>
