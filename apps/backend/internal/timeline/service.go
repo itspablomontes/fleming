@@ -467,14 +467,13 @@ func (s *service) GetFile(ctx context.Context, fileID string, actor string) (*Ev
 	}
 
 	if actor != "" {
+		actor = strings.ToLower(actor)
 		auditMetadata := common.JSONMap{
 			"eventId":  file.EventID,
 			"fileName": file.FileName,
 			"fileSize": file.FileSize,
 			"mimeType": file.MimeType,
 		}
-		// Chain is owned by the record owner (patient), not the requester.
-		// Record who performed the action separately.
 		if addr, err := types.NewWalletAddress(actor); err == nil {
 			auditMetadata["performedBy"] = addr.String()
 		}
@@ -552,6 +551,9 @@ func (s *service) GetFileKey(ctx context.Context, fileID string, actor string, p
 		return nil, err
 	}
 
+	actor = strings.ToLower(actor)
+	patientID = strings.ToLower(patientID)
+
 	if actor == patientID {
 		return file.WrappedDEK, nil
 	}
@@ -564,6 +566,7 @@ func (s *service) GetFileKey(ctx context.Context, fileID string, actor string, p
 }
 
 func (s *service) SaveFileAccess(ctx context.Context, fileID string, grantee string, wrappedDEK []byte) error {
+	grantee = strings.ToLower(grantee)
 	access := &EventFileAccess{
 		FileID:     fileID,
 		Grantee:    grantee,

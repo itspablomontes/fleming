@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/apps/backend/internal/auth"
+	"github.com/itspablomontes/fleming/apps/backend/internal/config"
 	"github.com/itspablomontes/fleming/apps/backend/internal/consent"
 )
 
@@ -17,10 +17,15 @@ func AuthMiddleware(authService *auth.Service) gin.HandlerFunc {
 		env := config.NormalizeEnv(os.Getenv("ENV"))
 		overrideAddress := os.Getenv("DEV_OVERRIDE_WALLET_ADDRESS")
 		if env == "dev" && overrideAddress != "" {
-			slog.Debug("auth: using dev override", "address", overrideAddress)
-			c.Set("user_address", overrideAddress)
-			c.Next()
-			return
+			// Only use override if the user hasn't explicitly logged out.
+			_, err := c.Cookie("fleming_has_session")
+			if err == nil {
+				normalizedAddress := strings.ToLower(overrideAddress)
+				slog.Debug("auth: using dev override", "address", normalizedAddress)
+				c.Set("user_address", normalizedAddress)
+				c.Next()
+				return
+			}
 		}
 
 		authHeader := c.GetHeader("Authorization")
@@ -51,7 +56,7 @@ func AuthMiddleware(authService *auth.Service) gin.HandlerFunc {
 		}
 
 		slog.Debug("auth: success", "address", address, "source", source)
-		c.Set("user_address", address)
+		c.Set("user_address", strings.ToLower(address))
 		c.Next()
 	}
 }
@@ -68,7 +73,7 @@ func ConsentMiddleware(consentService consent.Service) gin.HandlerFunc {
 			return
 		}
 
-		patientID := c.Query("patientId")
+		patientID := strings.ToLower(c.Query("patientId"))
 		if patientID == "" {
 			patientID = actor
 		}

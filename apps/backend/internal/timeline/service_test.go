@@ -55,7 +55,7 @@ func (m *MockAuditService) GetEntryByID(ctx context.Context, id string) (*audit.
 func (m *MockAuditService) GetEntriesByResource(ctx context.Context, resourceID string) ([]audit.AuditEntry, error) {
 	return nil, nil
 }
-func (m *MockAuditService) QueryEntries(ctx context.Context, filter protocol.QueryFilter) ([]audit.AuditEntry, error) {
+func (m *MockAuditService) QueryEntries(ctx context.Context, filter protocol.QueryFilter) (*protocol.QueryResult, error) {
 	return nil, nil
 }
 
