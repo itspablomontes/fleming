@@ -4,9 +4,7 @@ import type { JSX } from "react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toChecksumAddress, validateUserAddressInput } from "@/lib/address";
 import type { EthAddress } from "@/types/ethereum";
 
@@ -136,80 +134,70 @@ export function ConsentRequestWizard({
 	};
 
 	return (
-		<Card className="border-border bg-white dark:bg-gray-900">
-			<CardHeader className="space-y-3">
-				<CardTitle className="text-base font-semibold text-foreground">
-					Request access
-				</CardTitle>
-				<p className="text-sm text-muted-foreground">
-					Guide grantors through a clear, secure consent request.
-				</p>
-				<StepIndicator steps={stepLabels} currentStep={currentStep} />
-			</CardHeader>
-			<CardContent>
-				<form
-					onSubmit={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-						void form.handleSubmit();
-					}}
-					className="space-y-6"
-				>
-					<div aria-live="polite" className="sr-only">
-						{`Step ${currentStep + 1} of ${stepLabels.length}: ${
-							stepLabels[currentStep]
-						}`}
-					</div>
+		<div className="space-y-6">
+			<StepIndicator steps={stepLabels} currentStep={currentStep} />
+			<form
+				onSubmit={(event) => {
+					event.preventDefault();
+					event.stopPropagation();
+					void form.handleSubmit();
+				}}
+				className="space-y-6"
+			>
+				<div aria-live="polite" className="sr-only">
+					{`Step ${currentStep + 1} of ${stepLabels.length}: ${
+						stepLabels[currentStep]
+					}`}
+				</div>
 
-					{currentStep === 0 && <GrantorStep form={form as ConsentForm} />}
-					{currentStep === 1 && <PermissionsStep form={form as ConsentForm} />}
-					{currentStep === 2 && <DurationStep form={form as ConsentForm} />}
-					{currentStep === 3 && <ReasonStep form={form as ConsentForm} />}
-					{currentStep === 4 && <ReviewStep values={values} />}
+				{currentStep === 0 && <GrantorStep form={form as ConsentForm} />}
+				{currentStep === 1 && <PermissionsStep form={form as ConsentForm} />}
+				{currentStep === 2 && <DurationStep form={form as ConsentForm} />}
+				{currentStep === 3 && <ReasonStep form={form as ConsentForm} />}
+				{currentStep === 4 && <ReviewStep values={values} />}
 
-					<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+				<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<Button
+						type="button"
+						variant="outline"
+						disabled={currentStep === 0 || mutation.isPending}
+						onClick={handleBack}
+					>
+						Back
+					</Button>
+
+					{currentStep === 3 && (
 						<Button
 							type="button"
-							variant="outline"
-							disabled={currentStep === 0 || mutation.isPending}
-							onClick={handleBack}
+							variant="ghost"
+							onClick={handleNext}
+							disabled={mutation.isPending}
 						>
-							Back
+							Skip
 						</Button>
+					)}
 
-						{currentStep === 3 && (
-							<Button
-								type="button"
-								variant="ghost"
-								onClick={handleNext}
-								disabled={mutation.isPending}
-							>
-								Skip
-							</Button>
-						)}
-
-						{isLastStep ? (
-							<form.Subscribe
-								selector={(state) => [state.canSubmit, state.isSubmitting]}
-							>
-								{([canSubmit, isSubmitting]) => (
-									<Button type="submit" disabled={!canSubmit || isSubmitting}>
-										{isSubmitting ? "Sending request..." : "Submit request"}
-									</Button>
-								)}
-							</form.Subscribe>
-						) : (
-							<Button
-								type="button"
-								onClick={handleNext}
-								disabled={mutation.isPending}
-							>
-								Next
-							</Button>
-						)}
-					</div>
-				</form>
-			</CardContent>
-		</Card>
+					{isLastStep ? (
+						<form.Subscribe
+							selector={(state) => [state.canSubmit, state.isSubmitting]}
+						>
+							{([canSubmit, isSubmitting]) => (
+								<Button type="submit" disabled={!canSubmit || isSubmitting}>
+									{isSubmitting ? "Sending request..." : "Submit request"}
+								</Button>
+							)}
+						</form.Subscribe>
+					) : (
+						<Button
+							type="button"
+							onClick={handleNext}
+							disabled={mutation.isPending}
+						>
+							Next
+						</Button>
+					)}
+				</div>
+			</form>
+		</div>
 	);
 }

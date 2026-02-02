@@ -149,11 +149,12 @@ export function UploadModal({
 			setShowUnlockDialog(true);
 			return;
 		}
-
-		if (!isEditing && !file) {
-			setError("Please select a file to upload.");
-			return;
-		}
+        
+        // Removed the check that forced a file to be present.
+		// if (!isEditing && !file) {
+		// 	setError("Please select a file to upload.");
+		// 	return;
+		// }
 
 		if (!title.trim()) {
 			setError("Please provide a title for this event.");
@@ -176,6 +177,7 @@ export function UploadModal({
 			const isoDate = new Date(`${date}T12:00:00`).toISOString();
 
 			let payloadFile: File | Blob | undefined = file || undefined;
+			const fileName: string | undefined = file?.name;
 			let isEncrypted = false;
 			let wrappedKeyHex: string | undefined;
 			const shouldUseMultipart = Boolean(
@@ -331,6 +333,7 @@ export function UploadModal({
 					date: isoDate,
 					metadata: metadataObj,
 					file: payloadFile,
+                    fileName, // Pass the original filename
 					isEncrypted,
 					wrappedKey: wrappedKeyHex,
 				});
@@ -338,6 +341,7 @@ export function UploadModal({
 			} else {
 				const response = await addEvent({
 					file: payloadFile as File | Blob,
+                    fileName, // Pass the original filename
 					eventType,
 					title,
 					description,
@@ -712,7 +716,7 @@ export function UploadModal({
 							</Button>
 							<Button
 								onClick={handleUpload}
-								disabled={(!isEditing && !file) || isUploading}
+								disabled={!title.trim() || isUploading}
 								className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[140px]"
 							>
 								{isUploading ? (

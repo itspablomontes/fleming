@@ -273,6 +273,16 @@ export function HorizontalTimeline({
 		[minDate, maxDate, trackWidth],
 	);
 
+	// Auto-scroll to selected event when it changes or on initial load
+	useEffect(() => {
+		if (selectedEventId) {
+			const event = data.events.find((e) => e.id === selectedEventId);
+			if (event) {
+				scrollToDate(new Date(event.timestamp));
+			}
+		}
+	}, [selectedEventId, scrollToDate, data.events]);
+
 	const handleJumpPrev = useCallback(() => {
 		if (selectedEventId) {
 			// Find current index and select previous
