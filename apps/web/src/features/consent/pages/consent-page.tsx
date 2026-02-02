@@ -116,7 +116,7 @@ export function ConsentPage(): JSX.Element {
 									Request Access
 								</Button>
 							</DialogTrigger>
-							<DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+							<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
 								<DialogHeader>
 									<DialogTitle>Request Access</DialogTitle>
 									<DialogDescription>

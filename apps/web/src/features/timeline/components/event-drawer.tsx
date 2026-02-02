@@ -9,22 +9,14 @@ import {
 	Loader2,
 	Lock,
 	Network,
-	Share2,
+
 	ShieldCheck,
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { ConfirmationModal } from "@/components/common/confirmation-modal";
-import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { VaultUnlockDialog } from "@/components/common/vault-unlock-dialog";
+
 import {
 	Sheet,
 	SheetContent,
@@ -33,16 +25,14 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useVault } from "@/features/auth/contexts/vault-context";
-import { validateUserAddressInput } from "@/lib/address";
 import { API_URL } from "@/lib/api-client";
 import {
 	decryptChunkedBuffer,
 	decryptFile,
+
 	unwrapKey,
-	wrapKey,
 } from "@/lib/crypto/encryption";
-import { deriveMasterKey } from "@/lib/crypto/keys";
-import { getFileKey, shareFileKey, unlinkEvents } from "../api";
+import { getFileKey, unlinkEvents } from "../api";
 import { type EventEdge, type EventFile, RELATIONSHIP_LABELS, type TimelineEvent } from "../types";
 import { RelationshipCluster } from "./relationship-cluster";
 
@@ -78,15 +68,12 @@ export function EventDrawer({
 	});
 	const { masterKey, isUnlocked } = useVault();
 	const [isDownloading, setIsDownloading] = useState<string | null>(null);
-	const [shareFile, setShareFile] = useState<EventFile | null>(null);
-	const [shareAddress, setShareAddress] = useState("");
-	const [shareSignature, setShareSignature] = useState("");
-	const [shareSalt, setShareSalt] = useState("");
-	const [isSharing, setIsSharing] = useState(false);
-	const [shareError, setShareError] = useState<string | null>(null);
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const [deletingEdgeId, setDeletingEdgeId] = useState<string | null>(null);
 	const [edgeToDelete, setEdgeToDelete] = useState<EventEdge | null>(null);
+	const [fileToDownload, setFileToDownload] = useState<EventFile | null>(null);
+	const [showUnlockDialog, setShowUnlockDialog] = useState(false);
+const [pendingFile, setPendingFile] = useState<EventFile | null>(null);
 
 	const toBytes = useCallback((hex: string) => {
 		const normalized = hex.startsWith("0x") ? hex.slice(2) : hex;
@@ -96,11 +83,7 @@ export function EventDrawer({
 		return new Uint8Array(bytes);
 	}, []);
 
-	const toHex = useCallback((buffer: ArrayBuffer) => {
-		return Array.from(new Uint8Array(buffer))
-			.map((b) => b.toString(16).padStart(2, "0"))
-			.join("");
-	}, []);
+
 
 	const downloadFile = useCallback(
 		async (file: EventFile) => {
@@ -172,64 +155,7 @@ export function EventDrawer({
 		[event, masterKey, toBytes],
 	);
 
-	const handleShare = useCallback(async () => {
-		if (!event || !shareFile || !masterKey) return;
-		setShareError(null);
-		setIsSharing(true);
-		try {
-			if (!shareAddress.trim() || !shareSignature.trim() || !shareSalt.trim()) {
-				throw new Error("Recipient address, signature, and salt are required.");
-			}
-			const addressRes = validateUserAddressInput(shareAddress);
-			if (!addressRes.ok) {
-				throw new Error(addressRes.error);
-			}
-			const checksumGrantee = addressRes.checksum;
 
-			const keyResponse = await getFileKey({
-				eventId: event.id,
-				fileId: shareFile.id,
-				patientId: event.patientId,
-			});
-			const wrappedKeyBytes = toBytes(keyResponse.wrappedKey);
-			const dek = await unwrapKey(wrappedKeyBytes, masterKey);
-
-			const saltBytes = new TextEncoder().encode(shareSalt.trim());
-			const recipientKey = await deriveMasterKey(
-				shareSignature.trim(),
-				saltBytes,
-			);
-			const recipientWrapped = await wrapKey(dek, recipientKey);
-			const recipientWrappedHex = toHex(recipientWrapped);
-
-			await shareFileKey({
-				eventId: event.id,
-				fileId: shareFile.id,
-				grantee: checksumGrantee,
-				wrappedKey: recipientWrappedHex,
-			});
-
-			setShareFile(null);
-			setShareAddress("");
-			setShareSignature("");
-			setShareSalt("");
-		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : "Failed to share file.";
-			setShareError(message);
-		} finally {
-			setIsSharing(false);
-		}
-	}, [
-		event,
-		masterKey,
-		shareAddress,
-		shareFile,
-		shareSalt,
-		shareSignature,
-		toBytes,
-		toHex,
-	]);
 
 	const handleDeleteRelationship = useCallback(async () => {
 		if (!edgeToDelete) return;
@@ -253,7 +179,7 @@ export function EventDrawer({
 
 	return (
 		<>
-			<Sheet open={!!event} onOpenChange={(open) => !open && onClose()} modal={false}>
+			<Sheet open={!!event} onOpenChange={(open) => !open && !showUnlockDialog && !fileToDownload && onClose()} modal={false}>
 				<SheetContent
 					side="bottom"
 					hideOverlay
@@ -508,29 +434,21 @@ export function EventDrawer({
 															<div className="flex items-center gap-2">
 																<button
 																	type="button"
-																	onClick={() => setShareFile(file)}
-																	disabled={!isUnlocked}
-																	className="p-2.5 rounded-full bg-secondary/30 text-secondary-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-																	title={
-																		isUnlocked
-																			? "Share encrypted file"
-																			: "Unlock Vault to Share"
-																	}
-																	aria-label="Share encrypted file"
-																>
-																	<Share2 className="w-5 h-5" />
-																</button>
-																<button
-																	type="button"
-																	onClick={() => downloadFile(file)}
-																	disabled={!!isDownloading || !isUnlocked}
+																	onClick={(e) => { e.stopPropagation(); e.preventDefault();
+																		if (!isUnlocked) { setPendingFile(file);
+																			setShowUnlockDialog(true);
+																			return;
+																		}
+																		setFileToDownload(file);
+																	}}
+																	disabled={!!isDownloading}
 																	className="p-2.5 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
 																	title={
 																		isUnlocked
 																			? "Decrypt & Download"
 																			: "Unlock Vault to Download"
 																	}
-																	aria-label="Decrypt & Download"
+																	aria-label={isUnlocked ? "Decrypt & Download" : "Unlock Vault to Download"}
 																>
 																	{isDownloading === file.id ? (
 																		<Loader2 className="w-5 h-5 animate-spin" />
@@ -552,62 +470,7 @@ export function EventDrawer({
 				</SheetContent>
 			</Sheet>
 
-			<Dialog
-				open={!!shareFile}
-				onOpenChange={(open) => !open && setShareFile(null)}
-			>
-				<DialogContent className="max-w-md">
-					<DialogHeader>
-						<DialogTitle>Share encrypted file</DialogTitle>
-					</DialogHeader>
-					<div className="grid gap-4">
-						<div className="grid gap-2">
-							<Label htmlFor="share-address">Recipient address</Label>
-							<Input
-								id="share-address"
-								value={shareAddress}
-								onChange={(e) => setShareAddress(e.target.value)}
-								onBlur={() => {
-									const res = validateUserAddressInput(shareAddress);
-									if (res.ok) {
-										setShareAddress(res.checksum);
-									}
-								}}
-								placeholder="0x..."
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="share-signature">Recipient signature</Label>
-							<Input
-								id="share-signature"
-								value={shareSignature}
-								onChange={(e) => setShareSignature(e.target.value)}
-								placeholder="Signature used to derive recipient key"
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="share-salt">Recipient encryption salt</Label>
-							<Input
-								id="share-salt"
-								value={shareSalt}
-								onChange={(e) => setShareSalt(e.target.value)}
-								placeholder="Recipient salt from /api/auth/me"
-							/>
-						</div>
-						{shareError && (
-							<div className="text-sm text-destructive">{shareError}</div>
-						)}
-					</div>
-					<DialogFooter className="mt-4">
-						<Button variant="outline" onClick={() => setShareFile(null)}>
-							Cancel
-						</Button>
-						<Button onClick={handleShare} disabled={isSharing}>
-							{isSharing ? "Sharing..." : "Share"}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+
 
 			<ConfirmationModal
 				isOpen={!!downloadError}
@@ -618,6 +481,28 @@ export function EventDrawer({
 				confirmLabel="OK"
 				cancelLabel="Close"
 				variant="warning"
+			/>
+            
+            <ConfirmationModal
+                isOpen={!!fileToDownload}
+                onOpenChange={(open) => !open && setFileToDownload(null)}
+                onConfirm={() => {
+                    if (fileToDownload) {
+                        downloadFile(fileToDownload);
+                        setFileToDownload(null);
+                    }
+                }}
+                title="Decrypt & Download File"
+                message="This file is currently encrypted in your vault. Downloading it will decrypt the content to your local device. Are you sure you want to proceed?"
+                confirmLabel="Decrypt & Download"
+                cancelLabel="Cancel"
+                variant="info"
+            />
+
+			<VaultUnlockDialog
+				isOpen={showUnlockDialog}
+				onOpenChange={setShowUnlockDialog}
+				onSuccess={() => { if (pendingFile) { setFileToDownload(pendingFile); setPendingFile(null); } }}
 			/>
 
 			<ConfirmationModal
@@ -633,3 +518,4 @@ export function EventDrawer({
 		</>
 	);
 }
+

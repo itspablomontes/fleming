@@ -3,6 +3,7 @@ import type { UploadResponse } from "../types";
 
 export interface UploadPayload {
 	file?: File | Blob;
+	fileName?: string;
 	eventType: string;
 	title: string;
 	description: string;
@@ -18,7 +19,11 @@ export interface UploadPayload {
 export const addEvent = (payload: UploadPayload): Promise<UploadResponse> => {
 	const formData = new FormData();
 	if (payload.file) {
-		formData.append("file", payload.file);
+		if (payload.fileName) {
+			formData.append("file", payload.file, payload.fileName);
+		} else {
+			formData.append("file", payload.file);
+		}
 	}
 	formData.append("eventType", payload.eventType);
 	formData.append("title", payload.title);
@@ -56,7 +61,11 @@ export const correctEvent = (payload: CorrectionPayload): Promise<UploadResponse
 	const formData = new FormData();
 
 	if (payload.file) {
-		formData.append("file", payload.file);
+		if (payload.fileName) {
+			formData.append("file", payload.file, payload.fileName);
+		} else {
+			formData.append("file", payload.file);
+		}
 	}
 	
 	formData.append("eventType", payload.eventType);
