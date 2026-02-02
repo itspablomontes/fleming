@@ -4,7 +4,7 @@ import type { JSX } from "react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Button, Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { toChecksumAddress, validateUserAddressInput } from "@/lib/address";
 import type { EthAddress } from "@/types/ethereum";
 

@@ -223,7 +223,12 @@ export function TimelineViewPage(): JSX.Element {
 				source={linkSource}
 				target={pendingTarget}
 				onClose={clearPendingTarget}
-				onSuccess={refreshData}
+				onSuccess={() => {
+					if (pendingTarget) {
+						setSelectedEvent(pendingTarget);
+					}
+					refreshData();
+				}}
 			/>
 
 			{/* Upload Modal */}
