@@ -239,8 +239,11 @@ export function TimelineViewPage(): JSX.Element {
 					setUploadModalOpen(false);
 					resetAll();
 				}}
-				onSuccess={() => {
+				onSuccess={(event) => {
 					refreshData();
+					if (event) {
+						setSelectedEvent(event);
+					}
 					console.log("Operation successful");
 					cancelEdit();
 				}}

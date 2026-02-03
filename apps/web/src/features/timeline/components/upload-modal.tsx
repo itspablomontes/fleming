@@ -43,7 +43,7 @@ interface UploadModalProps {
 	isOpen: boolean;
 	existingEvents?: TimelineEvent[];
 	onClose: () => void;
-	onSuccess?: () => void;
+	onSuccess?: (event?: TimelineEvent) => void;
 }
 
 const MULTIPART_THRESHOLD_BYTES = 10 * 1024 * 1024;
@@ -294,7 +294,7 @@ export function UploadModal({
 						parts,
 					});
 
-					onSuccess?.();
+					onSuccess?.(createdEvent);
 					onClose();
 					cancelEdit();
 					reset();
@@ -322,6 +322,7 @@ export function UploadModal({
 
 			setStatus("Uploading to vault...");
 			let targetEventId = "";
+			let responseEvent: TimelineEvent | undefined;
 
 			if (isEditing && editEvent) {
 				const response = await correctEvent({
@@ -338,6 +339,7 @@ export function UploadModal({
 					wrappedKey: wrappedKeyHex,
 				});
 				targetEventId = response.event?.id || editEvent.id;
+				responseEvent = response.event || editEvent;
 			} else {
 				const response = await addEvent({
 					file: payloadFile as File | Blob,
@@ -352,6 +354,7 @@ export function UploadModal({
 					wrappedKey: wrappedKeyHex,
 				});
 				targetEventId = response.event?.id || "";
+				responseEvent = response.event;
 			}
 
 			// Process Relationships
@@ -368,7 +371,7 @@ export function UploadModal({
 				}
 			}
 
-			onSuccess?.();
+			onSuccess?.(responseEvent);
 			onClose();
 			cancelEdit();
 
